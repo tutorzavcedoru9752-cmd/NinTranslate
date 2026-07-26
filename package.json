@@ -1,0 +1,93 @@
+{
+  "name": "nintranslate",
+  "version": "1.3.0",
+  "private": true,
+  "description": "Windows screenshot OCR and Chinese-English translation tool",
+  "main": "dist-electron/main/main.js",
+  "author": {
+    "name": "NinTranslate",
+    "email": "support@nintranslate.local"
+  },
+  "license": "MIT",
+  "scripts": {
+    "dev": "concurrently -k \"vite --configLoader runner\" \"tsc -p tsconfig.electron.json --watch\" \"wait-on http://127.0.0.1:5173 dist-electron/main/main.js && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "test": "vitest run src --configLoader runner",
+    "prepare:ocr": "node scripts/prepare-ocr.mjs",
+    "clean:electron": "node scripts/clean-electron.mjs",
+    "build": "npm run prepare:ocr && npm run typecheck && vite build --configLoader runner && npm run clean:electron && tsc -p tsconfig.electron.json",
+    "dist": "npm run build && electron-builder --win nsis portable --x64",
+    "dist:dir": "npm run build && electron-builder --dir --win --x64"
+  },
+  "dependencies": {
+    "@tesseract.js-data/chi_sim": "^1.0.0",
+    "@tesseract.js-data/eng": "^1.0.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tesseract.js": "^6.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
+    "@vitejs/plugin-react": "^4.5.2",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^37.2.3",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.4",
+    "vitest": "^3.2.4",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.nintranslate.app",
+    "productName": "NinTranslate",
+    "electronDist": "node_modules/electron/dist",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/tesseract.js/**/*",
+      "node_modules/tesseract.js-core/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/ocr",
+        "to": "ocr"
+      },
+      {
+        "from": "resources/brand",
+        "to": "brand",
+        "filter": [
+          "nintranslate-window.png",
+          "nintranslate-tray.png"
+        ]
+      }
+    ],
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "resources/brand/nintranslate.ico"
+    },
+    "nsis": {
+      "artifactName": "NinTranslate-Setup-x64.${ext}",
+      "installerIcon": "resources/brand/nintranslate.ico",
+      "uninstallerIcon": "resources/brand/nintranslate.ico",
+      "installerHeaderIcon": "resources/brand/nintranslate.ico",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NinTranslate"
+    },
+    "portable": {
+      "artifactName": "NinTranslate-Portable-x64.${ext}"
+    }
+  }
+}
