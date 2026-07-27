@@ -261,6 +261,16 @@ function createTray(): void {
   tray.on('double-click', () => void startCapture());
 }
 
+function configureMacDockIcon(): void {
+  if (process.platform !== 'darwin' || !app.dock) return;
+  const icon = nativeImage.createFromPath(brandAssetPath('nintranslate-app-icon.png'));
+  if (icon.isEmpty()) {
+    console.warn('NinTranslate Dock icon is missing; continuing without a custom Dock icon.');
+    return;
+  }
+  app.dock.setIcon(icon);
+}
+
 function registerIpc(): void {
   ipcMain.handle('capture:get-payload', (event) => overlayPayloads.get(event.sender.id));
   ipcMain.handle('capture:complete', (_event, selection: CaptureSelection) => processSelection(selection));
@@ -311,10 +321,12 @@ function registerIpc(): void {
 const hasLock = app.requestSingleInstanceLock();
 if (!hasLock) app.quit();
 else {
+  // IPC is core functionality. Register it before any optional UI resources can fail.
+  registerIpc();
   app.on('second-instance', (_event, argv) => { if (argv.includes('--capture')) void startCapture(); else openSettings(); });
   app.whenReady().then(() => {
-    if (process.platform === 'darwin') app.dock?.setIcon(brandAssetPath('nintranslate-app-icon.png'));
-    registerIpc(); createTray();
+    try { configureMacDockIcon(); } catch (error) { console.error('Unable to configure the macOS Dock icon.', error); }
+    try { createTray(); } catch (error) { console.error('Unable to create the tray or menu-bar icon.', error); }
     const settings = getPublicSettings(); nativeTheme.themeSource = settings.theme;
     if (!registerHotkey(settings.hotkey)) openSettings();
     if (process.argv.includes('--capture')) void startCapture();

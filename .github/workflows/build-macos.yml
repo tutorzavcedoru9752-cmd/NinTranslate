@@ -41,6 +41,11 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run dist:mac -- --${{ matrix.arch }}
 
+      - name: Verify packaged core resources
+        run: |
+          test -n "$(find release -path '*/NinTranslate.app/Contents/Resources/brand/nintranslate-app-icon.png' -print -quit)"
+          grep -q "settings:test" dist-electron/main/main.js
+
       - name: Create checksums
         run: |
           cd release
