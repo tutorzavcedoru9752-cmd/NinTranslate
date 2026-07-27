@@ -1,6 +1,6 @@
 import {
-  app, BrowserWindow, clipboard, desktopCapturer, globalShortcut, ipcMain, Menu, nativeImage,
-  nativeTheme, screen, shell, Tray
+  app, BrowserWindow, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage,
+  nativeTheme, screen, shell, systemPreferences, Tray
 } from 'electron';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -53,12 +53,44 @@ function closeOverlays(): void {
   overlayPayloads.clear();
 }
 
+async function ensureScreenCapturePermission(): Promise<boolean> {
+  if (process.platform !== 'darwin') return true;
+  const status = systemPreferences.getMediaAccessStatus('screen');
+  if (status !== 'denied' && status !== 'restricted') return true;
+  const { response } = await dialog.showMessageBox({
+    type: 'warning',
+    title: '需要屏幕录制权限',
+    message: 'NinTranslate 需要读取屏幕画面，才能让你框选并识别文字。',
+    detail: '请在“系统设置 → 隐私与安全性 → 屏幕与系统音频录制”中允许 NinTranslate，然后重新启动应用。',
+    buttons: ['打开系统设置', '暂不设置'],
+    defaultId: 0,
+    cancelId: 1
+  });
+  if (response === 0) {
+    await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+  }
+  return false;
+}
+
 async function startCapture(): Promise<void> {
+  if (!await ensureScreenCapturePermission()) return;
   closeOverlays();
   const displays = screen.getAllDisplays();
   const maxWidth = Math.max(...displays.map((d) => Math.ceil(d.size.width * d.scaleFactor)));
   const maxHeight = Math.max(...displays.map((d) => Math.ceil(d.size.height * d.scaleFactor)));
   const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: maxWidth, height: maxHeight } });
+  if (!sources.length) {
+    await dialog.showMessageBox({
+      type: 'warning',
+      title: '无法读取屏幕',
+      message: '没有取得可用的屏幕画面。',
+      detail: process.platform === 'darwin'
+        ? '请确认已在“系统设置 → 隐私与安全性”中授予屏幕录制权限，然后重新启动 NinTranslate。'
+        : '请重试；如果问题持续存在，请重新启动 NinTranslate。',
+      buttons: ['知道了']
+    });
+    return;
+  }
 
   for (const display of displays) {
     const source = sources.find((item) => item.display_id === String(display.id)) ?? sources[displays.indexOf(display)];
@@ -75,6 +107,7 @@ async function startCapture(): Promise<void> {
     });
     win.on('closed', () => { overlayWindows.delete(win); overlayPayloads.delete(webContentsId); });
     await win.loadURL(pageUrl('overlay'));
+    if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     win.setAlwaysOnTop(true, 'screen-saver');
     win.show();
   }
@@ -208,7 +241,9 @@ function saveAndApplySettings(update: SettingsUpdate) {
   }
   const saved = saveSettings(update);
   nativeTheme.themeSource = saved.theme;
-  app.setLoginItemSettings({ openAtLogin: saved.launchAtLogin, path: process.execPath });
+  app.setLoginItemSettings(process.platform === 'win32'
+    ? { openAtLogin: saved.launchAtLogin, path: process.execPath }
+    : { openAtLogin: saved.launchAtLogin });
   return saved;
 }
 
@@ -294,6 +329,7 @@ if (!hasLock) app.quit();
 else {
   app.on('second-instance', (_event, argv) => { if (argv.includes('--capture')) void startCapture(); else openSettings(); });
   app.whenReady().then(() => {
+    if (process.platform === 'darwin') app.dock?.setIcon(brandAssetPath('nintranslate-app-icon.png'));
     registerIpc(); createTray();
     const settings = getPublicSettings(); nativeTheme.themeSource = settings.theme;
     if (!registerHotkey(settings.hotkey)) openSettings();

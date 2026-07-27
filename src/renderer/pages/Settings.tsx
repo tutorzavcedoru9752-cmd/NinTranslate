@@ -5,11 +5,12 @@ import logoUrl from '../../../resources/brand/nintranslate-window.png';
 
 const BAIDU_ENDPOINT = 'https://fanyi-api.baidu.com/api/trans/vip/translate';
 const MICROSOFT_ENDPOINT = 'https://api.cognitive.microsofttranslator.com';
+const IS_MAC = navigator.userAgent.includes('Macintosh');
 const initial: PublicSettings = {
   provider: 'baidu',
   endpoint: BAIDU_ENDPOINT,
   region: '',
-  hotkey: 'Alt+Shift+T',
+  hotkey: IS_MAC ? 'CommandOrControl+Shift+T' : 'Alt+Shift+T',
   launchAtLogin: false,
   theme: 'system',
   hasCredentials: false,
@@ -102,7 +103,7 @@ export function Settings(): React.JSX.Element {
           <div className="page-heading"><div><p className="eyebrow">PREFERENCES</p><h1>设置</h1><p>配置翻译服务和使用习惯</p></div><span className={settings.hasCredentials ? 'connection-badge ready' : 'connection-badge'}>{settings.hasCredentials ? '服务已配置' : '等待配置'}</span></div>
           {notice && <div className={`notice ${notice.kind}`}>{notice.text}</div>}
           <div className="settings-card">
-            <div className="card-heading"><div><h2>{settings.provider === 'baidu' ? '百度翻译服务' : '微软翻译服务'}</h2><p>截图不会上传，仅发送 OCR 识别出的文字</p></div><span className="security-pill">Windows 加密</span></div>
+            <div className="card-heading"><div><h2>{settings.provider === 'baidu' ? '百度翻译服务' : '微软翻译服务'}</h2><p>截图不会上传，仅发送 OCR 识别出的文字</p></div><span className="security-pill">{IS_MAC ? '钥匙串加密' : 'Windows 加密'}</span></div>
             <label>翻译服务<select value={settings.provider} onChange={(event) => changeProvider(event.target.value as TranslationProvider)}><option value="baidu">百度翻译（推荐）</option><option value="microsoft">Microsoft Translator</option></select></label>
             {settings.provider === 'baidu' ? <>
               <div className="two-columns"><label>APP ID<input value={baiduAppId} onChange={(event) => setBaiduAppId(event.target.value)} placeholder={settings.hasBaiduCredentials ? '已安全保存；留空表示不修改' : '粘贴百度翻译 APP ID'} autoComplete="off" /></label><label>密钥<input type="password" value={baiduSecret} onChange={(event) => setBaiduSecret(event.target.value)} placeholder={settings.hasBaiduCredentials ? '已安全保存；留空表示不修改' : '粘贴百度翻译密钥'} autoComplete="off" /></label></div>
@@ -113,8 +114,8 @@ export function Settings(): React.JSX.Element {
             </>}
             <div className="card-actions"><button className="link-button" onClick={() => void window.ninTranslate.app.openExternal(settings.provider === 'baidu' ? 'https://fanyi-api.baidu.com/product/113' : 'https://learn.microsoft.com/azure/ai-services/translator/create-translator-resource')}>如何获取凭据 ↗</button><button className="secondary-button" disabled={working} onClick={() => void testConnection()}>测试连接</button></div>
           </div>
-          <div className="settings-card compact"><h2>使用偏好</h2><div className="preference-row"><div><strong>截图快捷键</strong><p>从任意应用中唤起区域截图</p></div><input className="hotkey-input" value={settings.hotkey} onChange={(event) => update('hotkey', event.target.value)} /></div><div className="preference-row"><div><strong>界面主题</strong><p>跟随系统或固定明暗外观</p></div><select value={settings.theme} onChange={(event) => update('theme', event.target.value as ThemeMode)}><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></div><div className="preference-row"><div><strong>开机自动启动</strong><p>登录 Windows 后在托盘中运行</p></div><button className={settings.launchAtLogin ? 'switch on' : 'switch'} role="switch" aria-checked={settings.launchAtLogin} onClick={() => update('launchAtLogin', !settings.launchAtLogin)}><span /></button></div></div>
-          <div className="sticky-save"><span>{settings.hasCredentials ? '凭据已使用 Windows 用户级加密' : '首次使用前请填写翻译服务凭据'}</span><button className="primary-button" disabled={working} onClick={() => void save()}>{working ? '处理中…' : '保存设置'}</button></div>
+          <div className="settings-card compact"><h2>使用偏好</h2><div className="preference-row"><div><strong>截图快捷键</strong><p>从任意应用中唤起区域截图</p></div><input className="hotkey-input" value={settings.hotkey} onChange={(event) => update('hotkey', event.target.value)} /></div><div className="preference-row"><div><strong>界面主题</strong><p>跟随系统或固定明暗外观</p></div><select value={settings.theme} onChange={(event) => update('theme', event.target.value as ThemeMode)}><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></div><div className="preference-row"><div><strong>开机自动启动</strong><p>登录系统后在{IS_MAC ? '菜单栏' : '托盘'}中运行</p></div><button className={settings.launchAtLogin ? 'switch on' : 'switch'} role="switch" aria-checked={settings.launchAtLogin} onClick={() => update('launchAtLogin', !settings.launchAtLogin)}><span /></button></div></div>
+          <div className="sticky-save"><span>{settings.hasCredentials ? `凭据已使用${IS_MAC ? '系统钥匙串' : 'Windows 用户级'}加密` : '首次使用前请填写翻译服务凭据'}</span><button className="primary-button" disabled={working} onClick={() => void save()}>{working ? '处理中…' : '保存设置'}</button></div>
         </section> : <section className="settings-main history-page">
           <div className="page-heading"><div><p className="eyebrow">LOCAL HISTORY</p><h1>翻译历史</h1><p>仅保存在这台电脑上的文字记录</p></div></div>
           <div className="history-toolbar"><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索原文或译文…" /><span>{filteredHistory.length} 条记录</span><button className="secondary-button compact-button" onClick={() => void refreshHistory()}>刷新</button><button className="danger-button" disabled={!history.length} onClick={() => void clearAll()}>清空记录</button></div>

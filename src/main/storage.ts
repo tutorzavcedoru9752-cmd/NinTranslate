@@ -20,7 +20,7 @@ const defaults: StoredSettings = {
   provider: 'baidu',
   endpoint: 'https://fanyi-api.baidu.com/api/trans/vip/translate',
   region: '',
-  hotkey: 'Alt+Shift+T',
+  hotkey: process.platform === 'darwin' ? 'CommandOrControl+Shift+T' : 'Alt+Shift+T',
   launchAtLogin: false,
   theme: 'system'
 };
@@ -67,7 +67,7 @@ export function getPublicSettings(): PublicSettings {
 
 function decryptCredential(encrypted: string | undefined, label: string): string {
   if (!encrypted) return '';
-  if (!safeStorage.isEncryptionAvailable()) throw new Error(`当前 Windows 环境无法安全解密${label}。`);
+  if (!safeStorage.isEncryptionAvailable()) throw new Error(`当前系统无法安全解密${label}。`);
   try { return safeStorage.decryptString(Buffer.from(encrypted, 'base64')); }
   catch { throw new Error(`${label}无法解密，请在设置中重新填写。`); }
 }
@@ -102,11 +102,11 @@ export function saveSettings(update: SettingsUpdate): PublicSettings {
     theme: update.theme
   };
   if (update.apiKey?.trim()) {
-    if (!safeStorage.isEncryptionAvailable()) throw new Error('当前 Windows 环境不支持安全保存 API 密钥。');
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('当前系统不支持安全保存 API 密钥。');
     next.encryptedApiKey = safeStorage.encryptString(update.apiKey.trim()).toString('base64');
   }
   if (update.baiduAppId?.trim() || update.baiduSecret?.trim()) {
-    if (!safeStorage.isEncryptionAvailable()) throw new Error('当前 Windows 环境不支持安全保存百度翻译凭据。');
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('当前系统不支持安全保存百度翻译凭据。');
     if (update.baiduAppId?.trim()) next.encryptedBaiduAppId = safeStorage.encryptString(update.baiduAppId.trim()).toString('base64');
     if (update.baiduSecret?.trim()) next.encryptedBaiduSecret = safeStorage.encryptString(update.baiduSecret.trim()).toString('base64');
   }
