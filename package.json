@@ -18,7 +18,7 @@
     "build": "npm run prepare:ocr && npm run typecheck && vite build --configLoader runner && npm run clean:electron && tsc -p tsconfig.electron.json",
     "dist": "npm run dist:win",
     "dist:win": "npm run build && electron-builder --config.electronDist=node_modules/electron/dist --win nsis portable --x64",
-    "dist:mac": "npm run build && electron-builder --mac dmg zip",
+    "dist:mac": "npm run build && electron-builder --mac dmg zip --publish never",
     "dist:dir": "npm run build && electron-builder --dir --win --x64"
   },
   "dependencies": {
