@@ -55,3 +55,28 @@ jobs:
             release/NinTranslate-*-macOS-${{ matrix.arch }}.zip
             release/SHA256SUMS-macOS-${{ matrix.arch }}.txt
           if-no-files-found: error
+
+  release:
+    name: Publish tagged macOS release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download both architecture packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: NinTranslate-macOS-*
+          path: release
+          merge-multiple: true
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "NinTranslate 1.4.0 · macOS 原生版" \
+            --notes "新增 macOS 原生支持：提供 Apple 芯片 arm64 与 Intel x64 的 DMG 安装包和 ZIP 备用包。首次截图需在系统设置中允许屏幕录制。当前为未使用 Apple Developer 证书签名的测试版，请阅读仓库中的《macOS使用说明》。"
