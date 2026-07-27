@@ -1,6 +1,6 @@
 {
   "name": "nintranslate",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "description": "Windows and macOS screenshot OCR and Chinese-English translation tool",
   "main": "dist-electron/main/main.js",

@@ -78,5 +78,5 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" release/* \
             --repo "$GITHUB_REPOSITORY" \
-            --title "NinTranslate 1.4.0 · macOS 原生版" \
-            --notes "新增 macOS 原生支持：提供 Apple 芯片 arm64 与 Intel x64 的 DMG 安装包和 ZIP 备用包。首次截图需在系统设置中允许屏幕录制。当前为未使用 Apple Developer 证书签名的测试版，请阅读仓库中的《macOS使用说明》。"
+            --title "NinTranslate ${GITHUB_REF_NAME#v} · macOS 原生版" \
+            --notes "提供 Apple 芯片 arm64 与 Intel x64 的 DMG 安装包和 ZIP 备用包。首次截图需在系统设置中允许屏幕录制。当前为未使用 Apple Developer 证书签名的测试版，请阅读仓库中的《macOS使用说明》。"

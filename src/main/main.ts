@@ -13,6 +13,7 @@ import {
 } from './storage';
 import { translateText, type TranslatorCredentials } from './translator';
 import { clampResultWindowSize } from './windowSize';
+import { testTranslatorConnection } from './connectionTest';
 
 const preloadPath = path.join(__dirname, '..', 'preload', 'index.js');
 const brandAssetPath = (filename: string): string => app.isPackaged
@@ -286,26 +287,9 @@ function registerIpc(): void {
   ipcMain.handle('result:close', (_event, id: string) => resultWindows.get(id)?.close());
   ipcMain.handle('settings:get', () => getPublicSettings());
   ipcMain.handle('settings:save', (_event, update: SettingsUpdate) => saveAndApplySettings(update));
-  ipcMain.handle('settings:test', async (_event, update: SettingsUpdate) => {
-    try {
-      const stored = getTranslatorCredentials(update.provider);
-      const credentials: TranslatorCredentials = update.provider === 'baidu'
-        ? {
-            provider: 'baidu',
-            endpoint: update.endpoint,
-            appId: update.baiduAppId?.trim() || (stored.provider === 'baidu' ? stored.appId : ''),
-            secret: update.baiduSecret?.trim() || (stored.provider === 'baidu' ? stored.secret : '')
-          }
-        : {
-            provider: 'microsoft',
-            endpoint: update.endpoint,
-            region: update.region,
-            apiKey: update.apiKey?.trim() || (stored.provider === 'microsoft' ? stored.apiKey : '')
-          };
-      const translated = await translateText('Hello', 'en', 'zh-Hans', credentials);
-      return { ok: true, message: `连接成功：Hello → ${translated}` };
-    } catch (error) { return { ok: false, message: error instanceof Error ? error.message : '连接失败。' }; }
-  });
+  ipcMain.handle('settings:test', (_event, update: SettingsUpdate) => testTranslatorConnection(update, {
+    loadStored: getTranslatorCredentials
+  }));
   ipcMain.handle('history:list', () => listHistory());
   ipcMain.handle('history:delete', (_event, id: string) => {
     const history = deleteHistory(id);

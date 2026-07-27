@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { languageLabel } from '../../shared/language';
 import type { HistoryEntry, PublicSettings, SettingsUpdate, ThemeMode, TranslationProvider } from '../../shared/types';
 import logoUrl from '../../../resources/brand/nintranslate-window.png';
+import { runConnectionTest } from '../connectionTest';
 
 const BAIDU_ENDPOINT = 'https://fanyi-api.baidu.com/api/trans/vip/translate';
 const MICROSOFT_ENDPOINT = 'https://api.cognitive.microsofttranslator.com';
@@ -80,7 +81,16 @@ export function Settings(): React.JSX.Element {
       setWorking(false);
     }
   }
-  async function testConnection(): Promise<void> { setWorking(true); setNotice(null); const result = await window.ninTranslate.settings.test(payload()); setNotice({ kind: result.ok ? 'ok' : 'error', text: result.message }); setWorking(false); }
+  async function testConnection(): Promise<void> {
+    setWorking(true);
+    setNotice(null);
+    try {
+      const result = await runConnectionTest(() => window.ninTranslate.settings.test(payload()));
+      setNotice({ kind: result.ok ? 'ok' : 'error', text: result.message });
+    } finally {
+      setWorking(false);
+    }
+  }
   async function removeHistory(id: string): Promise<void> { setHistory(await window.ninTranslate.history.delete(id)); }
   async function refreshHistory(): Promise<void> { setHistory(await window.ninTranslate.history.list()); }
   async function clearAll(): Promise<void> {

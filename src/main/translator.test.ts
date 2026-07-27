@@ -29,6 +29,17 @@ describe('translateText', () => {
       secret: 'bad'
     })).rejects.toMatchObject({ kind: 'auth' });
   });
+  it('aborts a Baidu request that exceeds the deadline', async () => {
+    vi.stubGlobal('fetch', vi.fn((_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
+      options.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    })));
+    await expect(translateText('hello', 'en', 'zh-Hans', {
+      provider: 'baidu',
+      endpoint: 'https://fanyi-api.baidu.com/api/trans/vip/translate',
+      appId: 'app-id',
+      secret: 'secret'
+    }, 10)).rejects.toMatchObject({ kind: 'timeout' });
+  });
   it('parses a Microsoft translation response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify([{ translations: [{ text: 'Hello' }] }]), { status: 200 })));
     await expect(translateText('你好', 'zh-Hans', 'en', {
