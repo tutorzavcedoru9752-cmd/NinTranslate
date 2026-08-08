@@ -92,7 +92,8 @@ jobs:
         run: npm run test:ocr
 
       - name: Build Windows packages
-        run: npm run dist:win
+        shell: cmd
+        run: npm run dist:win || (echo First Windows packaging attempt failed; retrying once... && npm run dist:win)
 
       - name: Verify packaged core resources
         shell: pwsh
