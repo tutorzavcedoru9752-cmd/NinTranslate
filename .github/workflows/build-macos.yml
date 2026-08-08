@@ -118,12 +118,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Failed to extract NSIS' }
           7z x $resourcesArchive "-o$resourcesDir" -y | Out-Null
           if ($LASTEXITCODE -ne 0) { throw 'Failed to extract NSIS resources' }
-          tar -xzf $sevenZipArchive -C $sevenZipDir
+          tar -xzf $sevenZipArchive -C $toolRoot
           if ($LASTEXITCODE -ne 0) { throw 'Failed to extract 7zip toolset' }
+
+          $sevenZipPath = Join-Path $sevenZipDir 'bin/7za.exe'
+          if (-not (Test-Path (Join-Path $nsisDir 'Bin/makensis.exe'))) { throw 'NSIS executable is missing after extraction' }
+          if (-not (Test-Path (Join-Path $resourcesDir 'plugins'))) { throw 'NSIS plugins are missing after extraction' }
+          if (-not (Test-Path $sevenZipPath)) { throw '7zip executable is missing after extraction' }
 
           "ELECTRON_BUILDER_NSIS_DIR=$nsisDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "ELECTRON_BUILDER_NSIS_RESOURCES_DIR=$resourcesDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "ELECTRON_BUILDER_7ZIP_PATH=$(Join-Path $sevenZipDir 'bin/7za.exe')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ELECTRON_BUILDER_7ZIP_PATH=$sevenZipPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build Windows packages
         run: npm run dist:win
