@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { LanguageCode } from '../shared/types';
+import type { LanguageCode, SourceLanguageCode, TranslationResult } from '../shared/types';
 
 export interface BaiduTranslatorCredentials {
   provider: 'baidu';
@@ -23,11 +23,11 @@ export class TranslationError extends Error {
 
 export async function translateText(
   text: string,
-  source: LanguageCode,
+  source: SourceLanguageCode,
   target: LanguageCode,
   credentials: TranslatorCredentials,
   timeoutMs = 15000
-): Promise<string> {
+): Promise<TranslationResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -43,11 +43,11 @@ export async function translateText(
 
 async function translateWithBaidu(
   text: string,
-  source: LanguageCode,
+  source: SourceLanguageCode,
   target: LanguageCode,
   credentials: BaiduTranslatorCredentials,
   signal: AbortSignal
-): Promise<string> {
+): Promise<TranslationResult> {
   if (!credentials.appId || !credentials.secret) {
     throw new TranslationError('请先在设置中填写百度翻译 APP ID 和密钥。', 'auth');
   }
@@ -55,8 +55,8 @@ async function translateWithBaidu(
   const sign = createHash('md5').update(`${credentials.appId}${text}${salt}${credentials.secret}`, 'utf8').digest('hex');
   const body = new URLSearchParams({
     q: text,
-    from: source === 'zh-Hans' ? 'zh' : 'en',
-    to: target === 'zh-Hans' ? 'zh' : 'en',
+    from: source === 'auto' ? 'auto' : toBaiduLanguage(source),
+    to: toBaiduLanguage(target),
     appid: credentials.appId,
     salt,
     sign
@@ -71,6 +71,7 @@ async function translateWithBaidu(
   const data = await response.json() as {
     error_code?: string | number;
     error_msg?: string;
+    from?: string;
     trans_result?: Array<{ dst?: string }>;
   };
   if (data.error_code && String(data.error_code) !== '52000') {
@@ -78,7 +79,7 @@ async function translateWithBaidu(
   }
   const translated = data.trans_result?.map((item) => item.dst?.trim()).filter(Boolean).join('\n');
   if (!translated) throw new TranslationError('百度翻译没有返回有效内容。', 'service');
-  return translated;
+  return { text: translated, detectedSourceLanguage: normalizeProviderLanguage(data.from) };
 }
 
 function baiduError(code: string): TranslationError {
@@ -94,14 +95,16 @@ function baiduError(code: string): TranslationError {
 
 async function translateWithMicrosoft(
   text: string,
-  source: LanguageCode,
+  source: SourceLanguageCode,
   target: LanguageCode,
   credentials: MicrosoftTranslatorCredentials,
   signal: AbortSignal
-): Promise<string> {
+): Promise<TranslationResult> {
   if (!credentials.apiKey) throw new TranslationError('请先在设置中填写 Microsoft Translator API 密钥。', 'auth');
   const endpoint = credentials.endpoint.replace(/\/$/, '');
-  const url = `${endpoint}/translate?api-version=3.0&from=${encodeURIComponent(source)}&to=${encodeURIComponent(target)}`;
+  const query = new URLSearchParams({ 'api-version': '3.0', to: toMicrosoftLanguage(target) });
+  if (source !== 'auto') query.set('from', toMicrosoftLanguage(source));
+  const url = `${endpoint}/translate?${query.toString()}`;
   const headers: Record<string, string> = {
     'Ocp-Apim-Subscription-Key': credentials.apiKey,
     'Content-Type': 'application/json; charset=UTF-8',
@@ -114,8 +117,75 @@ async function translateWithMicrosoft(
     if (response.status === 429) throw new TranslationError('翻译额度或请求频率已达到限制，请稍后重试。', 'quota');
     throw new TranslationError(`翻译服务暂时不可用（错误 ${response.status}）。`, 'service');
   }
-  const data = await response.json() as Array<{ translations?: Array<{ text?: string }> }>;
+  const data = await response.json() as Array<{
+    detectedLanguage?: { language?: string };
+    translations?: Array<{ text?: string }>;
+  }>;
   const translated = data[0]?.translations?.[0]?.text?.trim();
   if (!translated) throw new TranslationError('翻译服务没有返回有效内容。', 'service');
-  return translated;
+  return {
+    text: translated,
+    detectedSourceLanguage: source === 'auto'
+      ? normalizeProviderLanguage(data[0]?.detectedLanguage?.language)
+      : source
+  };
+}
+
+const baiduLanguageCodes: Record<LanguageCode, string> = {
+  'zh-Hans': 'zh',
+  'zh-Hant': 'cht',
+  en: 'en',
+  ja: 'jp',
+  ko: 'kor',
+  fr: 'fra',
+  de: 'de',
+  es: 'spa',
+  pt: 'pt',
+  ru: 'ru'
+};
+
+const microsoftLanguageCodes: Record<LanguageCode, string> = {
+  'zh-Hans': 'zh-Hans',
+  'zh-Hant': 'zh-Hant',
+  en: 'en',
+  ja: 'ja',
+  ko: 'ko',
+  fr: 'fr',
+  de: 'de',
+  es: 'es',
+  pt: 'pt',
+  ru: 'ru'
+};
+
+const providerLanguageCodes: Record<string, LanguageCode> = {
+  zh: 'zh-Hans',
+  'zh-cn': 'zh-Hans',
+  'zh-hans': 'zh-Hans',
+  cht: 'zh-Hant',
+  'zh-tw': 'zh-Hant',
+  'zh-hant': 'zh-Hant',
+  en: 'en',
+  jp: 'ja',
+  ja: 'ja',
+  kor: 'ko',
+  ko: 'ko',
+  fra: 'fr',
+  fr: 'fr',
+  de: 'de',
+  spa: 'es',
+  es: 'es',
+  pt: 'pt',
+  ru: 'ru'
+};
+
+export function toBaiduLanguage(language: LanguageCode): string {
+  return baiduLanguageCodes[language];
+}
+
+export function toMicrosoftLanguage(language: LanguageCode): string {
+  return microsoftLanguageCodes[language];
+}
+
+export function normalizeProviderLanguage(language: string | undefined): SourceLanguageCode {
+  return language ? providerLanguageCodes[language.toLowerCase()] ?? 'auto' : 'auto';
 }

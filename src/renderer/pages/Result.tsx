@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { languageLabel } from '../../shared/language';
-import type { ResultState } from '../../shared/types';
+import { languageLabel, SUPPORTED_LANGUAGES } from '../../shared/language';
+import type { LanguageCode, ResultState } from '../../shared/types';
 import logoUrl from '../../../resources/brand/nintranslate-window.png';
 
 function resultId(): string { return new URLSearchParams(window.location.hash.split('?')[1] || '').get('id') || ''; }
@@ -20,6 +20,11 @@ export function Result(): React.JSX.Element {
     void window.ninTranslate.result.copy(text);
     setCopied(kind);
     window.setTimeout(() => setCopied(null), 1200);
+  }
+
+  function changeTarget(targetLanguage: LanguageCode): void {
+    if (!state || targetLanguage === state.targetLanguage) return;
+    void window.ninTranslate.result.setTarget(id, targetLanguage);
   }
 
   if (!state) return <main className="result-shell loading"><span className="spinner dark" />正在打开…</main>;
@@ -48,9 +53,9 @@ export function Result(): React.JSX.Element {
             <div className="panel-label"><span>原文 · {languageLabel(state.sourceLanguage)}</span><button onClick={() => copy(state.sourceText, 'source')}>{copied === 'source' ? '已复制' : '复制'}</button></div>
             <div className="text-scroll">{state.sourceText}</div>
           </div>
-          <button className="swap-button" title="交换翻译方向" onClick={() => void window.ninTranslate.result.swap(id)} disabled={busy}>⇅</button>
+          <button className="swap-button" title="交换原文和译文" onClick={() => void window.ninTranslate.result.swap(id)} disabled={busy || state.sourceLanguage === 'auto' || !state.translatedText}>⇅</button>
           <div className="text-panel translation-panel">
-            <div className="panel-label"><span>译文 · {languageLabel(state.targetLanguage)}</span>{state.translatedText && <button onClick={() => copy(state.translatedText, 'translation')}>{copied === 'translation' ? '已复制' : '复制'}</button>}</div>
+            <div className="panel-label"><label className="target-language"><span>译文 ·</span><select aria-label="目标语言" value={state.targetLanguage} disabled={!state.sourceText} onChange={(event) => changeTarget(event.target.value as LanguageCode)}>{SUPPORTED_LANGUAGES.map((language) => <option key={language.code} value={language.code}>{language.label}</option>)}</select></label>{state.translatedText && <button onClick={() => copy(state.translatedText, 'translation')}>{copied === 'translation' ? '已复制' : '复制'}</button>}</div>
             <div className="text-scroll translation-text">{state.translatedText || (busy ? <span className="inline-loading"><span className="spinner tiny" />正在翻译…</span> : <span className="placeholder">等待翻译结果</span>)}</div>
           </div>
         </>}

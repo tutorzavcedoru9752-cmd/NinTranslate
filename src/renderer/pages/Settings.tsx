@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { languageLabel } from '../../shared/language';
-import type { HistoryEntry, PublicSettings, SettingsUpdate, ThemeMode, TranslationProvider } from '../../shared/types';
+import { languageLabel, SUPPORTED_LANGUAGES } from '../../shared/language';
+import type { HistoryEntry, LanguageCode, PublicSettings, SettingsUpdate, ThemeMode, TranslationProvider } from '../../shared/types';
 import logoUrl from '../../../resources/brand/nintranslate-window.png';
 import { runConnectionTest } from '../connectionTest';
 
@@ -14,6 +14,7 @@ const initial: PublicSettings = {
   hotkey: IS_MAC ? 'CommandOrControl+Shift+T' : 'Alt+Shift+T',
   launchAtLogin: false,
   theme: 'system',
+  defaultTargetLanguage: 'zh-Hans',
   hasCredentials: false,
   hasBaiduCredentials: false,
   hasMicrosoftApiKey: false
@@ -60,6 +61,7 @@ export function Settings(): React.JSX.Element {
       hotkey: settings.hotkey,
       launchAtLogin: settings.launchAtLogin,
       theme: settings.theme,
+      defaultTargetLanguage: settings.defaultTargetLanguage,
       baiduAppId: baiduAppId || undefined,
       baiduSecret: baiduSecret || undefined,
       apiKey: apiKey || undefined
@@ -124,7 +126,7 @@ export function Settings(): React.JSX.Element {
             </>}
             <div className="card-actions"><button className="link-button" onClick={() => void window.ninTranslate.app.openExternal(settings.provider === 'baidu' ? 'https://fanyi-api.baidu.com/product/113' : 'https://learn.microsoft.com/azure/ai-services/translator/create-translator-resource')}>如何获取凭据 ↗</button><button className="secondary-button" disabled={working} onClick={() => void testConnection()}>测试连接</button></div>
           </div>
-          <div className="settings-card compact"><h2>使用偏好</h2><div className="preference-row"><div><strong>截图快捷键</strong><p>从任意应用中唤起区域截图</p></div><input className="hotkey-input" value={settings.hotkey} onChange={(event) => update('hotkey', event.target.value)} /></div><div className="preference-row"><div><strong>界面主题</strong><p>跟随系统或固定明暗外观</p></div><select value={settings.theme} onChange={(event) => update('theme', event.target.value as ThemeMode)}><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></div><div className="preference-row"><div><strong>开机自动启动</strong><p>登录系统后在{IS_MAC ? '菜单栏' : '托盘'}中运行</p></div><button className={settings.launchAtLogin ? 'switch on' : 'switch'} role="switch" aria-checked={settings.launchAtLogin} onClick={() => update('launchAtLogin', !settings.launchAtLogin)}><span /></button></div></div>
+          <div className="settings-card compact"><h2>使用偏好</h2><div className="preference-row"><div><strong>默认翻译成</strong><p>新截图完成识别后自动翻译到该语言</p></div><select value={settings.defaultTargetLanguage} onChange={(event) => update('defaultTargetLanguage', event.target.value as LanguageCode)}>{SUPPORTED_LANGUAGES.map((language) => <option key={language.code} value={language.code}>{language.label}</option>)}</select></div><div className="preference-row"><div><strong>截图快捷键</strong><p>从任意应用中唤起区域截图</p></div><input className="hotkey-input" value={settings.hotkey} onChange={(event) => update('hotkey', event.target.value)} /></div><div className="preference-row"><div><strong>界面主题</strong><p>跟随系统或固定明暗外观</p></div><select value={settings.theme} onChange={(event) => update('theme', event.target.value as ThemeMode)}><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></div><div className="preference-row"><div><strong>开机自动启动</strong><p>登录系统后在{IS_MAC ? '菜单栏' : '托盘'}中运行</p></div><button className={settings.launchAtLogin ? 'switch on' : 'switch'} role="switch" aria-checked={settings.launchAtLogin} onClick={() => update('launchAtLogin', !settings.launchAtLogin)}><span /></button></div></div>
           <div className="sticky-save"><span>{settings.hasCredentials ? `凭据已使用${IS_MAC ? '系统钥匙串' : 'Windows 用户级'}加密` : '首次使用前请填写翻译服务凭据'}</span><button className="primary-button" disabled={working} onClick={() => void save()}>{working ? '处理中…' : '保存设置'}</button></div>
         </section> : <section className="settings-main history-page">
           <div className="page-heading"><div><p className="eyebrow">LOCAL HISTORY</p><h1>翻译历史</h1><p>仅保存在这台电脑上的文字记录</p></div></div>

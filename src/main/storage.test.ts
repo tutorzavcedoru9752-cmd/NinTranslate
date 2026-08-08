@@ -11,9 +11,10 @@ vi.mock('electron', () => ({
   }
 }));
 
-import { addHistory, clearHistory, deleteHistory, listHistory } from './storage';
+import { addHistory, clearHistory, deleteHistory, getPublicSettings, listHistory } from './storage';
 
 const historyPath = path.join('.vitest-storage', 'history.json');
+const settingsPath = path.join('.vitest-storage', 'settings.json');
 const entry = {
   id: 'history-test',
   createdAt: '2026-07-25T00:00:00.000Z',
@@ -26,12 +27,39 @@ const entry = {
 beforeEach(() => {
   fs.mkdirSync(path.dirname(historyPath), { recursive: true });
   fs.writeFileSync(historyPath, '[]', 'utf8');
+  fs.writeFileSync(settingsPath, '{}', 'utf8');
+});
+
+describe('settings migration', () => {
+  it('defaults old settings files to Simplified Chinese', () => {
+    fs.writeFileSync(settingsPath, JSON.stringify({ provider: 'baidu' }), 'utf8');
+    expect(getPublicSettings().defaultTargetLanguage).toBe('zh-Hans');
+  });
+
+  it('keeps a valid saved target language and rejects unknown values', () => {
+    fs.writeFileSync(settingsPath, JSON.stringify({ defaultTargetLanguage: 'ja' }), 'utf8');
+    expect(getPublicSettings().defaultTargetLanguage).toBe('ja');
+    fs.writeFileSync(settingsPath, JSON.stringify({ defaultTargetLanguage: 'xx' }), 'utf8');
+    expect(getPublicSettings().defaultTargetLanguage).toBe('zh-Hans');
+  });
 });
 
 describe('history storage', () => {
   it('adds and lists a completed translation', () => {
     expect(addHistory(entry)).toEqual([entry]);
     expect(listHistory()).toEqual([entry]);
+  });
+
+  it('updates the same screenshot history instead of creating a duplicate', () => {
+    addHistory(entry);
+    const updated = {
+      ...entry,
+      targetLanguage: 'ja' as const,
+      translatedText: 'テスト翻訳'
+    };
+
+    expect(addHistory(updated)).toEqual([updated]);
+    expect(listHistory()).toEqual([updated]);
   });
 
   it('deletes one history record', () => {

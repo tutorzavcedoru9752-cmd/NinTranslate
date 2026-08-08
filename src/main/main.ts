@@ -4,8 +4,8 @@ import {
 } from 'electron';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { CapturePayload, CaptureSelection, HistoryEntry, ResultState, SettingsUpdate } from '../shared/types';
-import { inferTranslationDirection } from '../shared/language';
+import type { CapturePayload, CaptureSelection, HistoryEntry, LanguageCode, ResultState, SettingsUpdate } from '../shared/types';
+import { isLanguageCode } from '../shared/language';
 import { recognizeImage, terminateOcr } from './ocr';
 import {
   addHistory, clearHistory, deleteHistory, getPublicSettings, getTranslatorCredentials,
@@ -14,6 +14,7 @@ import {
 import { translateText, type TranslatorCredentials } from './translator';
 import { clampResultWindowSize } from './windowSize';
 import { testTranslatorConnection } from './connectionTest';
+import { RequestVersionTracker } from './requestVersion';
 
 const preloadPath = path.join(__dirname, '..', 'preload', 'index.js');
 const brandAssetPath = (filename: string): string => app.isPackaged
@@ -23,6 +24,7 @@ const overlayPayloads = new Map<number, CapturePayload>();
 const overlayWindows = new Set<BrowserWindow>();
 const resultStates = new Map<string, ResultState>();
 const resultWindows = new Map<string, BrowserWindow>();
+const resultRequestVersions = new RequestVersionTracker();
 let settingsWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let quitting = false;
@@ -141,9 +143,10 @@ function broadcastHistory(history: HistoryEntry[] = listHistory()): void {
 async function createResultWindow(selection: CaptureSelection): Promise<{ id: string; win: BrowserWindow }> {
   const id = randomUUID();
   const position = resultPosition(selection.screenBounds);
+  const targetLanguage = getPublicSettings().defaultTargetLanguage;
   const state: ResultState = {
-    id, status: 'recognizing', sourceLanguage: 'en', targetLanguage: 'zh-Hans',
-    sourceText: '', translatedText: '', message: '正在本地识别文字…', pinned: false
+    id, status: 'recognizing', sourceLanguage: 'auto', targetLanguage,
+    sourceText: '', translatedText: '', message: '正在加载多语言识别模型并识别文字…', pinned: false
   };
   resultStates.set(id, state);
   const win = createWindow({
@@ -152,7 +155,7 @@ async function createResultWindow(selection: CaptureSelection): Promise<{ id: st
     show: false, backgroundColor: '#00000000'
   });
   resultWindows.set(id, win);
-  win.on('closed', () => { resultWindows.delete(id); resultStates.delete(id); });
+  win.on('closed', () => { resultWindows.delete(id); resultStates.delete(id); resultRequestVersions.delete(id); });
   await win.loadURL(pageUrl(`result?id=${encodeURIComponent(id)}`));
   win.show();
   return { id, win };
@@ -161,6 +164,7 @@ async function createResultWindow(selection: CaptureSelection): Promise<{ id: st
 async function performTranslation(id: string): Promise<void> {
   const state = resultStates.get(id);
   if (!state || !state.sourceText) return;
+  const requestVersion = resultRequestVersions.next(id);
   let credentials: TranslatorCredentials;
   try { credentials = getTranslatorCredentials(); } catch (error) {
     sendResult({ ...state, status: 'needs-config', message: error instanceof Error ? error.message : '请检查翻译设置。' });
@@ -176,12 +180,19 @@ async function performTranslation(id: string): Promise<void> {
   }
   sendResult({ ...state, status: 'translating', translatedText: '', message: '正在翻译…' });
   try {
-    const translatedText = await translateText(state.sourceText, state.sourceLanguage, state.targetLanguage, credentials);
-    const ready: ResultState = { ...state, status: 'ready', translatedText, message: undefined };
+    const result = await translateText(state.sourceText, state.sourceLanguage, state.targetLanguage, credentials);
+    if (!resultRequestVersions.isLatest(id, requestVersion)) return;
+    const ready: ResultState = {
+      ...state,
+      status: 'ready',
+      sourceLanguage: state.sourceLanguage === 'auto' ? result.detectedSourceLanguage : state.sourceLanguage,
+      translatedText: result.text,
+      message: undefined
+    };
     try {
       const history = addHistory({
         id, createdAt: new Date().toISOString(), sourceLanguage: ready.sourceLanguage,
-        targetLanguage: ready.targetLanguage, sourceText: ready.sourceText, translatedText
+        targetLanguage: ready.targetLanguage, sourceText: ready.sourceText, translatedText: result.text
       });
       broadcastHistory(history);
       sendResult(ready);
@@ -189,6 +200,7 @@ async function performTranslation(id: string): Promise<void> {
       sendResult({ ...ready, message: '翻译已完成，但历史记录保存失败，请检查应用数据目录权限。' });
     }
   } catch (error) {
+    if (!resultRequestVersions.isLatest(id, requestVersion)) return;
     sendResult({ ...state, status: 'error', message: error instanceof Error ? error.message : '翻译失败，请重试。' });
   }
 }
@@ -202,10 +214,9 @@ async function processSelection(selection: CaptureSelection): Promise<void> {
       sendResult({ ...resultStates.get(id)!, status: 'empty', confidence: ocr.confidence, message: '没有识别到文字，请重新截图。' });
       return;
     }
-    const direction = inferTranslationDirection(ocr.text);
     sendResult({
-      ...resultStates.get(id)!, status: 'translating', sourceLanguage: direction.source, targetLanguage: direction.target,
-      sourceText: ocr.text, confidence: ocr.confidence, message: ocr.confidence < 45 ? '识别置信度较低，翻译结果可能需要校对。' : '识别完成，正在翻译…'
+      ...resultStates.get(id)!, status: 'translating', sourceLanguage: 'auto',
+      sourceText: ocr.text, confidence: ocr.confidence, message: ocr.confidence < 45 ? '识别置信度较低，翻译结果可能需要校对。' : '识别完成，正在自动检测语言并翻译…'
     });
     await performTranslation(id);
   } catch (error) {
@@ -277,10 +288,33 @@ function registerIpc(): void {
   ipcMain.handle('capture:cancel', () => closeOverlays());
   ipcMain.handle('result:get', (_event, id: string) => resultStates.get(id) ?? null);
   ipcMain.handle('result:retry', (_event, id: string) => performTranslation(id));
-  ipcMain.handle('result:swap', async (_event, id: string) => {
-    const state = resultStates.get(id); if (!state) return;
-    sendResult({ ...state, sourceLanguage: state.targetLanguage, targetLanguage: state.sourceLanguage, translatedText: '' });
+  ipcMain.handle('result:set-target', async (_event, id: string, targetLanguage: LanguageCode) => {
+    const state = resultStates.get(id);
+    if (!state || !isLanguageCode(targetLanguage) || state.targetLanguage === targetLanguage) return;
+    sendResult({ ...state, targetLanguage, translatedText: '', status: 'translating', message: '正在翻译到所选语言…' });
     await performTranslation(id);
+  });
+  ipcMain.handle('result:swap', (_event, id: string) => {
+    const state = resultStates.get(id);
+    if (!state || state.status !== 'ready' || state.sourceLanguage === 'auto' || !state.translatedText) return;
+    resultRequestVersions.next(id);
+    const swapped: ResultState = {
+      ...state,
+      sourceLanguage: state.targetLanguage,
+      targetLanguage: state.sourceLanguage,
+      sourceText: state.translatedText,
+      translatedText: state.sourceText
+    };
+    const history = addHistory({
+      id,
+      createdAt: new Date().toISOString(),
+      sourceLanguage: swapped.sourceLanguage,
+      targetLanguage: swapped.targetLanguage,
+      sourceText: swapped.sourceText,
+      translatedText: swapped.translatedText
+    });
+    broadcastHistory(history);
+    sendResult(swapped);
   });
   ipcMain.handle('result:copy', (_event, text: string) => clipboard.writeText(text));
   ipcMain.handle('result:pin', (_event, id: string, pinned: boolean) => {

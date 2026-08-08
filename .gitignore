@@ -5,8 +5,7 @@ release/
 .vitest-storage/
 
 # Local OCR build copies; packaged models under resources/ocr are tracked.
-/eng.traineddata
-/chi_sim.traineddata
+/*.traineddata
 
 # Branding source/QA previews not required by the application build.
 /resources/brand/nintranslate-logo-source.png

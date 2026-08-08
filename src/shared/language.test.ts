@@ -1,8 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { inferTranslationDirection } from './language';
+import { isLanguageCode, languageLabel, SUPPORTED_LANGUAGES } from './language';
 
-describe('inferTranslationDirection', () => {
-  it('detects Chinese text', () => expect(inferTranslationDirection('欢迎使用截图翻译')).toEqual({ source: 'zh-Hans', target: 'en' }));
-  it('detects English text', () => expect(inferTranslationDirection('Screenshot translation ready')).toEqual({ source: 'en', target: 'zh-Hans' }));
-  it('treats English UI text with one Chinese label as Chinese when meaningful', () => expect(inferTranslationDirection('设置 Settings')).toEqual({ source: 'zh-Hans', target: 'en' }));
+describe('supported languages', () => {
+  it('contains the ten bundled OCR languages', () => {
+    expect(SUPPORTED_LANGUAGES.map(({ code }) => code)).toEqual([
+      'zh-Hans', 'zh-Hant', 'en', 'ja', 'ko', 'fr', 'de', 'es', 'pt', 'ru'
+    ]);
+    expect(new Set(SUPPORTED_LANGUAGES.map(({ tesseract }) => tesseract)).size).toBe(10);
+  });
+
+  it('validates persisted language codes', () => {
+    expect(isLanguageCode('ja')).toBe(true);
+    expect(isLanguageCode('auto')).toBe(false);
+    expect(isLanguageCode('xx')).toBe(false);
+  });
+
+  it('labels automatic and known languages', () => {
+    expect(languageLabel('auto')).toBe('自动识别');
+    expect(languageLabel('zh-Hant')).toBe('繁体中文');
+    expect(languageLabel('ru')).toBe('俄语');
+  });
 });

@@ -1,7 +1,8 @@
 import { app, safeStorage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { HistoryEntry, PublicSettings, SettingsUpdate, ThemeMode, TranslationProvider } from '../shared/types';
+import { isLanguageCode } from '../shared/language';
+import type { HistoryEntry, LanguageCode, PublicSettings, SettingsUpdate, ThemeMode, TranslationProvider } from '../shared/types';
 import type { TranslatorCredentials } from './translator';
 
 interface StoredSettings {
@@ -11,6 +12,7 @@ interface StoredSettings {
   hotkey: string;
   launchAtLogin: boolean;
   theme: ThemeMode;
+  defaultTargetLanguage: LanguageCode;
   encryptedApiKey?: string;
   encryptedBaiduAppId?: string;
   encryptedBaiduSecret?: string;
@@ -22,7 +24,8 @@ const defaults: StoredSettings = {
   region: '',
   hotkey: process.platform === 'darwin' ? 'CommandOrControl+Shift+T' : 'Alt+Shift+T',
   launchAtLogin: false,
-  theme: 'system'
+  theme: 'system',
+  defaultTargetLanguage: 'zh-Hans'
 };
 
 function dataPath(name: string): string {
@@ -45,7 +48,10 @@ function writeJson(name: string, value: unknown): void {
 export function getStoredSettings(): StoredSettings {
   const saved = readJson<Partial<StoredSettings>>('settings.json', {});
   const provider = saved.provider ?? (saved.encryptedApiKey ? 'microsoft' : 'baidu');
-  return { ...defaults, ...saved, provider };
+  const defaultTargetLanguage = isLanguageCode(saved.defaultTargetLanguage)
+    ? saved.defaultTargetLanguage
+    : defaults.defaultTargetLanguage;
+  return { ...defaults, ...saved, provider, defaultTargetLanguage };
 }
 
 export function getPublicSettings(): PublicSettings {
@@ -59,6 +65,7 @@ export function getPublicSettings(): PublicSettings {
     hotkey: settings.hotkey,
     launchAtLogin: settings.launchAtLogin,
     theme: settings.theme,
+    defaultTargetLanguage: settings.defaultTargetLanguage,
     hasCredentials: settings.provider === 'baidu' ? hasBaiduCredentials : hasMicrosoftApiKey,
     hasBaiduCredentials,
     hasMicrosoftApiKey
@@ -99,7 +106,10 @@ export function saveSettings(update: SettingsUpdate): PublicSettings {
     region: update.region.trim(),
     hotkey: update.hotkey.trim() || defaults.hotkey,
     launchAtLogin: update.launchAtLogin,
-    theme: update.theme
+    theme: update.theme,
+    defaultTargetLanguage: isLanguageCode(update.defaultTargetLanguage)
+      ? update.defaultTargetLanguage
+      : defaults.defaultTargetLanguage
   };
   if (update.apiKey?.trim()) {
     if (!safeStorage.isEncryptionAvailable()) throw new Error('当前系统不支持安全保存 API 密钥。');

@@ -57,7 +57,7 @@ export async function testTranslatorConnection(
       dependencies.timeoutMs ?? 16000,
       '连接测试超时。请求已停止，请检查网络、代理或系统钥匙串后重试。'
     );
-    return { ok: true, message: `连接成功：Hello → ${translated}` };
+    return { ok: true, message: `连接成功：Hello → ${translated.text}` };
   } catch (error) {
     return {
       ok: false,

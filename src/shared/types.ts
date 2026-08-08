@@ -1,4 +1,5 @@
-export type LanguageCode = 'zh-Hans' | 'en';
+export type LanguageCode = 'zh-Hans' | 'zh-Hant' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es' | 'pt' | 'ru';
+export type SourceLanguageCode = LanguageCode | 'auto';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type TranslationProvider = 'baidu' | 'microsoft';
 
@@ -9,6 +10,7 @@ export interface PublicSettings {
   hotkey: string;
   launchAtLogin: boolean;
   theme: ThemeMode;
+  defaultTargetLanguage: LanguageCode;
   hasCredentials: boolean;
   hasBaiduCredentials: boolean;
   hasMicrosoftApiKey: boolean;
@@ -21,6 +23,7 @@ export interface SettingsUpdate {
   hotkey: string;
   launchAtLogin: boolean;
   theme: ThemeMode;
+  defaultTargetLanguage: LanguageCode;
   baiduAppId?: string;
   baiduSecret?: string;
   apiKey?: string;
@@ -29,7 +32,7 @@ export interface SettingsUpdate {
 export interface HistoryEntry {
   id: string;
   createdAt: string;
-  sourceLanguage: LanguageCode;
+  sourceLanguage: SourceLanguageCode;
   targetLanguage: LanguageCode;
   sourceText: string;
   translatedText: string;
@@ -40,7 +43,7 @@ export type ResultStatus = 'recognizing' | 'translating' | 'ready' | 'needs-conf
 export interface ResultState {
   id: string;
   status: ResultStatus;
-  sourceLanguage: LanguageCode;
+  sourceLanguage: SourceLanguageCode;
   targetLanguage: LanguageCode;
   sourceText: string;
   translatedText: string;
@@ -62,3 +65,8 @@ export interface CaptureSelection {
 }
 
 export interface TestTranslationResult { ok: boolean; message: string }
+
+export interface TranslationResult {
+  text: string;
+  detectedSourceLanguage: SourceLanguageCode;
+}

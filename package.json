@@ -1,8 +1,8 @@
 {
   "name": "nintranslate",
-  "version": "1.4.2",
+  "version": "1.5.0",
   "private": true,
-  "description": "Windows and macOS screenshot OCR and Chinese-English translation tool",
+  "description": "Windows and macOS multilingual screenshot OCR and translation tool",
   "main": "dist-electron/main/main.js",
   "author": {
     "name": "NinTranslate",
@@ -12,7 +12,8 @@
   "scripts": {
     "dev": "concurrently -k \"vite --configLoader runner\" \"tsc -p tsconfig.electron.json --watch\" \"wait-on http://127.0.0.1:5173 dist-electron/main/main.js && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
-    "test": "vitest run src --configLoader runner",
+    "test": "vitest run src --configLoader runner --exclude src/main/ocr.integration.test.ts",
+    "test:ocr": "vitest run src/main/ocr.integration.test.ts --configLoader runner",
     "prepare:ocr": "node scripts/prepare-ocr.mjs",
     "clean:electron": "node scripts/clean-electron.mjs",
     "build": "npm run prepare:ocr && npm run typecheck && vite build --configLoader runner && npm run clean:electron && tsc -p tsconfig.electron.json",
@@ -23,7 +24,15 @@
   },
   "dependencies": {
     "@tesseract.js-data/chi_sim": "^1.0.0",
+    "@tesseract.js-data/chi_tra": "^1.0.0",
+    "@tesseract.js-data/deu": "^1.0.0",
     "@tesseract.js-data/eng": "^1.0.0",
+    "@tesseract.js-data/fra": "^1.0.0",
+    "@tesseract.js-data/jpn": "^1.0.0",
+    "@tesseract.js-data/kor": "^1.0.0",
+    "@tesseract.js-data/por": "^1.0.0",
+    "@tesseract.js-data/rus": "^1.0.0",
+    "@tesseract.js-data/spa": "^1.0.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tesseract.js": "^6.0.1"
@@ -56,7 +65,8 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "package.json"
+      "package.json",
+      "!node_modules/@tesseract.js-data/**/*"
     ],
     "extraResources": [
       {
@@ -74,11 +84,17 @@
       }
     ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "resources/brand/nintranslate.ico"
     },
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "resources/brand/nintranslate-app-icon.png",
       "category": "public.app-category.productivity",
       "artifactName": "NinTranslate-${version}-macOS-${arch}.${ext}"

@@ -6,7 +6,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'resources', 'ocr');
 fs.mkdirSync(output, { recursive: true });
 
-for (const language of ['eng', 'chi_sim']) {
+for (const language of ['chi_sim', 'chi_tra', 'eng', 'jpn', 'kor', 'fra', 'deu', 'spa', 'por', 'rus']) {
   const packageDir = path.join(root, 'node_modules', `@tesseract.js-data/${language}`);
   const candidates = [
     path.join(packageDir, '4.0.0_best_int', `${language}.traineddata.gz`),

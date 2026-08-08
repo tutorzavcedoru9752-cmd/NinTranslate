@@ -1,4 +1,4 @@
-name: Build macOS packages
+name: Build desktop packages
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  macos:
     name: macOS ${{ matrix.arch }}
     runs-on: macos-14
     strategy:
@@ -36,6 +36,9 @@ jobs:
       - name: Run automated tests
         run: npm test -- --run
 
+      - name: Run multilingual OCR fixtures
+        run: npm run test:ocr
+
       - name: Build macOS package
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -45,6 +48,10 @@ jobs:
         run: |
           test -n "$(find release -path '*/NinTranslate.app/Contents/Resources/brand/nintranslate-app-icon.png' -print -quit)"
           grep -q "settings:test" dist-electron/main/main.js
+          APP_RESOURCES="$(find release -path '*/NinTranslate.app/Contents/Resources' -type d -print -quit)"
+          for lang in chi_sim chi_tra eng jpn kor fra deu spa por rus; do
+            test -f "$APP_RESOURCES/ocr/$lang.traineddata.gz"
+          done
 
       - name: Create checksums
         run: |
@@ -61,19 +68,75 @@ jobs:
             release/SHA256SUMS-macOS-${{ matrix.arch }}.txt
           if-no-files-found: error
 
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run automated tests
+        run: npm test -- --run
+
+      - name: Run multilingual OCR fixtures
+        run: npm run test:ocr
+
+      - name: Build Windows packages
+        run: npm run dist:win
+
+      - name: Verify packaged core resources
+        shell: pwsh
+        run: |
+          $languages = 'chi_sim','chi_tra','eng','jpn','kor','fra','deu','spa','por','rus'
+          foreach ($language in $languages) {
+            if (-not (Test-Path "release/win-unpacked/resources/ocr/$language.traineddata.gz")) {
+              throw "Missing packaged OCR model: $language"
+            }
+          }
+          if (-not (Select-String -Quiet -Path dist-electron/main/main.js -Pattern 'result:set-target')) {
+            throw 'Missing result:set-target IPC handler'
+          }
+
+      - name: Create checksums
+        shell: pwsh
+        run: |
+          Get-FileHash release/NinTranslate-Setup-x64.exe,release/NinTranslate-Portable-x64.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } |
+            Set-Content -Encoding ascii release/SHA256SUMS-Windows-x64.txt
+
+      - name: Upload Windows packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: NinTranslate-Windows-x64
+          path: |
+            release/NinTranslate-Setup-x64.exe
+            release/NinTranslate-Portable-x64.exe
+            release/SHA256SUMS-Windows-x64.txt
+          if-no-files-found: error
+
   release:
-    name: Publish tagged macOS release
+    name: Publish tagged desktop release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [macos, windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Download both architecture packages
+      - name: Download all platform packages
         uses: actions/download-artifact@v4
         with:
-          pattern: NinTranslate-macOS-*
+          pattern: NinTranslate-*
           path: release
           merge-multiple: true
 
@@ -83,5 +146,5 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" release/* \
             --repo "$GITHUB_REPOSITORY" \
-            --title "NinTranslate ${GITHUB_REF_NAME#v} · macOS 原生版" \
-            --notes "提供 Apple 芯片 arm64 与 Intel x64 的 DMG 安装包和 ZIP 备用包。首次截图需在系统设置中允许屏幕录制。当前为未使用 Apple Developer 证书签名的测试版，请阅读仓库中的《macOS使用说明》。"
+            --title "NinTranslate ${GITHUB_REF_NAME#v} · 十语种截图翻译" \
+            --notes "新增简繁中文、英语、日语、韩语、法语、德语、西班牙语、葡萄牙语和俄语离线 OCR；翻译服务自动检测源语言；设置页与结果页均可选择目标语言。提供 Windows 安装版/便携版，以及 macOS Apple 芯片 arm64/Intel x64 安装包。macOS 当前仍为未使用 Apple Developer 证书签名的测试版。"

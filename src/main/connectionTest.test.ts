@@ -9,6 +9,7 @@ const baiduUpdate: SettingsUpdate = {
   hotkey: 'CommandOrControl+Shift+T',
   launchAtLogin: false,
   theme: 'system',
+  defaultTargetLanguage: 'zh-Hans',
   baiduAppId: 'fresh-id',
   baiduSecret: 'fresh-secret'
 };
@@ -41,7 +42,7 @@ describe('connection test service', () => {
   it('returns a successful translation result', async () => {
     const result = await testTranslatorConnection(baiduUpdate, {
       loadStored: vi.fn(),
-      translate: vi.fn().mockResolvedValue('你好')
+      translate: vi.fn().mockResolvedValue({ text: '你好', detectedSourceLanguage: 'en' })
     });
     expect(result).toEqual({ ok: true, message: '连接成功：Hello → 你好' });
   });
