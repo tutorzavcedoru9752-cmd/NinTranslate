@@ -91,9 +91,42 @@ jobs:
       - name: Run multilingual OCR fixtures
         run: npm run test:ocr
 
+      - name: Prepare verified Windows packaging tools
+        shell: pwsh
+        run: |
+          $toolRoot = Join-Path $env:RUNNER_TEMP 'nintranslate-builder-tools'
+          $nsisDir = Join-Path $toolRoot 'nsis'
+          $resourcesDir = Join-Path $toolRoot 'nsis-resources'
+          $sevenZipDir = Join-Path $toolRoot '7zip'
+          New-Item -ItemType Directory -Force -Path $nsisDir,$resourcesDir,$sevenZipDir | Out-Null
+
+          function Get-VerifiedTool($url, $destination, $sha256) {
+            curl.exe --fail --location --retry 10 --retry-delay 3 --retry-all-errors --connect-timeout 20 $url --output $destination
+            if ($LASTEXITCODE -ne 0) { throw "Failed to download $url" }
+            $actual = (Get-FileHash $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $sha256) { throw "Checksum mismatch for $destination" }
+          }
+
+          $nsisArchive = Join-Path $toolRoot 'nsis-3.0.4.1.7z'
+          $resourcesArchive = Join-Path $toolRoot 'nsis-resources-3.4.1.7z'
+          $sevenZipArchive = Join-Path $toolRoot '7zip-win-x64.tar.gz'
+          Get-VerifiedTool 'https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-3.0.4.1/nsis-3.0.4.1.7z' $nsisArchive '9877df902530f96357d13a7a31ae2b9df67f48b11ffc9a1700a7c961574ec5fa'
+          Get-VerifiedTool 'https://github.com/electron-userland/electron-builder-binaries/releases/download/nsis-resources-3.4.1/nsis-resources-3.4.1.7z' $resourcesArchive '593a9a92ef958321293ac6a2ee61e64bf1bd543142a5bd6b3d310709cc924103'
+          Get-VerifiedTool 'https://github.com/electron-userland/electron-builder-binaries/releases/download/7zip%401.0.0/7zip-win-x64.tar.gz' $sevenZipArchive 'be071f15bd6da2f78fe81c6ddef2009b0c4d8a51f36b780cb806c7e6df95e1b3'
+
+          7z x $nsisArchive "-o$nsisDir" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to extract NSIS' }
+          7z x $resourcesArchive "-o$resourcesDir" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to extract NSIS resources' }
+          tar -xzf $sevenZipArchive -C $sevenZipDir
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to extract 7zip toolset' }
+
+          "ELECTRON_BUILDER_NSIS_DIR=$nsisDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ELECTRON_BUILDER_NSIS_RESOURCES_DIR=$resourcesDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ELECTRON_BUILDER_7ZIP_PATH=$(Join-Path $sevenZipDir 'bin/7za.exe')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Build Windows packages
-        shell: cmd
-        run: npm run dist:win || (echo First Windows packaging attempt failed; retrying once... && npm run dist:win)
+        run: npm run dist:win
 
       - name: Verify packaged core resources
         shell: pwsh
