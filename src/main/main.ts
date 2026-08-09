@@ -4,9 +4,9 @@ import {
 } from 'electron';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { CapturePayload, CaptureSelection, HistoryEntry, LanguageCode, ResultState, SettingsUpdate } from '../shared/types';
+import type { CapturePayload, CaptureSelection, HistoryEntry, LanguageCode, ResultState, SettingsUpdate, TextFlowMode } from '../shared/types';
 import { isLanguageCode } from '../shared/language';
-import { recognizeImage, terminateOcr } from './ocr';
+import { recognizeImage, terminateOcr, type OcrParagraph } from './ocr';
 import { buildTranslationText } from './textFlow';
 import {
   addHistory, clearHistory, deleteHistory, getPublicSettings, getTranslatorCredentials,
@@ -16,6 +16,7 @@ import { translateText, type TranslatorCredentials } from './translator';
 import { clampResultWindowSize } from './windowSize';
 import { testTranslatorConnection } from './connectionTest';
 import { RequestVersionTracker } from './requestVersion';
+import { prepareEditedResult } from './sourceEdit';
 
 const preloadPath = path.join(__dirname, '..', 'preload', 'index.js');
 const brandAssetPath = (filename: string): string => app.isPackaged
@@ -24,7 +25,7 @@ const brandAssetPath = (filename: string): string => app.isPackaged
 const overlayPayloads = new Map<number, CapturePayload>();
 const overlayWindows = new Set<BrowserWindow>();
 const resultStates = new Map<string, ResultState>();
-const resultTranslationTexts = new Map<string, string>();
+const resultOcrParagraphs = new Map<string, OcrParagraph[]>();
 const resultWindows = new Map<string, BrowserWindow>();
 const resultRequestVersions = new RequestVersionTracker();
 let settingsWindow: BrowserWindow | null = null;
@@ -148,7 +149,8 @@ async function createResultWindow(selection: CaptureSelection): Promise<{ id: st
   const targetLanguage = getPublicSettings().defaultTargetLanguage;
   const state: ResultState = {
     id, status: 'recognizing', sourceLanguage: 'auto', targetLanguage,
-    sourceText: '', translatedText: '', message: '正在启动本地 RapidOCR 并识别文字…', pinned: false
+    sourceText: '', translatedText: '', message: '正在启动本地 OCR 并分析文字版面…', pinned: false,
+    sourceEdited: false, flowMode: 'smart'
   };
   resultStates.set(id, state);
   const win = createWindow({
@@ -160,7 +162,7 @@ async function createResultWindow(selection: CaptureSelection): Promise<{ id: st
   win.on('closed', () => {
     resultWindows.delete(id);
     resultStates.delete(id);
-    resultTranslationTexts.delete(id);
+    resultOcrParagraphs.delete(id);
     resultRequestVersions.delete(id);
   });
   await win.loadURL(pageUrl(`result?id=${encodeURIComponent(id)}`));
@@ -187,8 +189,7 @@ async function performTranslation(id: string): Promise<void> {
   }
   sendResult({ ...state, status: 'translating', translatedText: '', message: '正在翻译…' });
   try {
-    const translationText = resultTranslationTexts.get(id) ?? buildTranslationText([], state.sourceText);
-    const result = await translateText(translationText, state.sourceLanguage, state.targetLanguage, credentials);
+    const result = await translateText(state.sourceText, state.sourceLanguage, state.targetLanguage, credentials);
     if (!resultRequestVersions.isLatest(id, requestVersion)) return;
     const ready: ResultState = {
       ...state,
@@ -222,10 +223,12 @@ async function processSelection(selection: CaptureSelection): Promise<void> {
       sendResult({ ...resultStates.get(id)!, status: 'empty', confidence: ocr.confidence, message: '没有识别到文字，请重新截图。' });
       return;
     }
-    resultTranslationTexts.set(id, buildTranslationText(ocr.paragraphs, ocr.text));
+    resultOcrParagraphs.set(id, ocr.paragraphs);
+    const sourceText = buildTranslationText(ocr.paragraphs, ocr.text, 'smart');
     sendResult({
       ...resultStates.get(id)!, status: 'translating', sourceLanguage: 'auto',
-      sourceText: ocr.text, confidence: ocr.confidence, message: ocr.confidence < 45 ? '识别置信度较低，翻译结果可能需要校对。' : '识别完成，正在自动检测语言并翻译…'
+      sourceText, confidence: ocr.confidence, sourceEdited: false,
+      message: ocr.confidence < 45 ? '识别置信度较低，翻译结果可能需要校对。' : '识别与版面整理完成，正在翻译…'
     });
     await performTranslation(id);
   } catch (error) {
@@ -303,6 +306,41 @@ function registerIpc(): void {
     sendResult({ ...state, targetLanguage, translatedText: '', status: 'translating', message: '正在翻译到所选语言…' });
     await performTranslation(id);
   });
+  ipcMain.handle('result:set-flow-mode', async (_event, id: unknown, mode: unknown) => {
+    if (typeof id !== 'string' || !['smart', 'preserve', 'merge'].includes(String(mode))) {
+      throw new Error('分段模式无效。');
+    }
+    const state = resultStates.get(id);
+    const paragraphs = resultOcrParagraphs.get(id);
+    if (!state || !paragraphs) throw new Error('当前截图的逐行识别数据已经不可用。');
+    if (state.sourceEdited) throw new Error('原文已人工编辑，不能再自动重排。');
+    if (state.status === 'recognizing' || state.status === 'translating') {
+      throw new Error('当前仍在处理文字，请稍后再切换。');
+    }
+    const flowMode = mode as TextFlowMode;
+    if (state.flowMode === flowMode) return;
+    const sourceText = buildTranslationText(paragraphs, paragraphs.map(({ text }) => text).join('\n'), flowMode);
+    resultRequestVersions.next(id);
+    sendResult({
+      ...state, flowMode, sourceText, sourceLanguage: 'auto', translatedText: '',
+      status: 'translating', message: '正在按新的分段方式重新翻译…'
+    });
+    await performTranslation(id);
+  });
+  ipcMain.handle('result:update-source', async (_event, id: unknown, sourceText: unknown) => {
+    if (typeof id !== 'string') throw new Error('翻译结果标识无效。');
+    const state = resultStates.get(id);
+    if (!state) throw new Error('翻译结果窗口已经关闭。');
+    if (state.status === 'recognizing' || state.status === 'translating') {
+      throw new Error('当前仍在处理文字，请稍后再编辑。');
+    }
+    const edited = prepareEditedResult(state, sourceText);
+    const normalized = edited.sourceText;
+    if (normalized === state.sourceText) return;
+    resultRequestVersions.next(id);
+    sendResult(edited);
+    await performTranslation(id);
+  });
   ipcMain.handle('result:swap', (_event, id: string) => {
     const state = resultStates.get(id);
     if (!state || state.status !== 'ready' || state.sourceLanguage === 'auto' || !state.translatedText) return;
@@ -312,9 +350,10 @@ function registerIpc(): void {
       sourceLanguage: state.targetLanguage,
       targetLanguage: state.sourceLanguage,
       sourceText: state.translatedText,
-      translatedText: state.sourceText
+      translatedText: state.sourceText,
+      sourceEdited: false
     };
-    resultTranslationTexts.set(id, buildTranslationText([], swapped.sourceText));
+    resultOcrParagraphs.delete(id);
     const history = addHistory({
       id,
       createdAt: new Date().toISOString(),

@@ -2,6 +2,7 @@ export type LanguageCode = 'zh-Hans' | 'zh-Hant' | 'en' | 'ja' | 'ko' | 'fr' | '
 export type SourceLanguageCode = LanguageCode | 'auto';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type TranslationProvider = 'baidu' | 'microsoft';
+export type TextFlowMode = 'smart' | 'preserve' | 'merge';
 
 export interface PublicSettings {
   provider: TranslationProvider;
@@ -50,6 +51,8 @@ export interface ResultState {
   confidence?: number;
   message?: string;
   pinned: boolean;
+  sourceEdited: boolean;
+  flowMode: TextFlowMode;
 }
 
 export interface CapturePayload {

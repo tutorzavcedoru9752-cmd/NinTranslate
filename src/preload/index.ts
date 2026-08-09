@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { CapturePayload, CaptureSelection, HistoryEntry, LanguageCode, PublicSettings, ResultState, SettingsUpdate, TestTranslationResult } from '../shared/types';
+import type { CapturePayload, CaptureSelection, HistoryEntry, LanguageCode, PublicSettings, ResultState, SettingsUpdate, TestTranslationResult, TextFlowMode } from '../shared/types';
 
 const api = {
   capture: {
@@ -11,6 +11,8 @@ const api = {
     get: (id: string): Promise<ResultState | null> => ipcRenderer.invoke('result:get', id),
     retry: (id: string): Promise<void> => ipcRenderer.invoke('result:retry', id),
     setTarget: (id: string, targetLanguage: LanguageCode): Promise<void> => ipcRenderer.invoke('result:set-target', id, targetLanguage),
+    setFlowMode: (id: string, mode: TextFlowMode): Promise<void> => ipcRenderer.invoke('result:set-flow-mode', id, mode),
+    updateSource: (id: string, sourceText: string): Promise<void> => ipcRenderer.invoke('result:update-source', id, sourceText),
     swap: (id: string): Promise<void> => ipcRenderer.invoke('result:swap', id),
     copy: (text: string): Promise<void> => ipcRenderer.invoke('result:copy', text),
     pin: (id: string, pinned: boolean): Promise<void> => ipcRenderer.invoke('result:pin', id, pinned),

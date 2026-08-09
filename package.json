@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "test": "vitest run src --configLoader runner --exclude src/main/ocr.integration.test.ts",
     "test:ocr": "vitest run src/main/ocr.integration.test.ts --configLoader runner",
+    "test:ocr:browser": "npm run build && node scripts/ocr-browser-random.cjs",
     "prepare:ocr": "node scripts/prepare-ocr.mjs",
     "build:rapidocr": "node scripts/build-rapidocr.mjs",
     "clean:electron": "node scripts/clean-electron.mjs",

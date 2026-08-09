@@ -19,8 +19,12 @@ jobs:
         include:
           - arch: arm64
             runner: macos-15
+            machine_arch: arm64
+            binary_arch: arm64
           - arch: x64
             runner: macos-15-intel
+            machine_arch: x86_64
+            binary_arch: x86_64
 
     steps:
       - name: Check out source
@@ -36,6 +40,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Verify native runner architecture
+        run: test "$(uname -m)" = "${{ matrix.machine_arch }}"
 
       - name: Install dependencies
         run: npm ci
@@ -61,10 +68,14 @@ jobs:
           test -n "$(find release -path '*/NinTranslate.app/Contents/Resources/brand/nintranslate-app-icon.png' -print -quit)"
           grep -q "settings:test" dist-electron/main/main.js
           APP_RESOURCES="$(find release -path '*/NinTranslate.app/Contents/Resources' -type d -print -quit)"
-          for model in ch_PP-LCNet_x0_25_textline_ori_cls_mobile ch_PP-OCRv5_det_mobile ch_PP-OCRv5_rec_mobile eslav_PP-OCRv5_rec_mobile korean_PP-OCRv5_rec_mobile latin_PP-OCRv5_rec_mobile; do
+          for model in ch_PP-LCNet_x0_25_textline_ori_cls_mobile ch_PP-OCRv5_det_mobile ch_PP-OCRv5_rec_mobile ch_PP-OCRv5_rec_server eslav_PP-OCRv5_rec_mobile korean_PP-OCRv5_rec_mobile latin_PP-OCRv5_rec_mobile layout_cdla layout_publaynet; do
             test -f "$APP_RESOURCES/rapidocr/models/$model.onnx"
           done
-          test -x "$APP_RESOURCES/rapidocr/runtime/darwin-${{ matrix.arch }}/rapidocr-sidecar/rapidocr-sidecar"
+          SIDECAR="$APP_RESOURCES/rapidocr/runtime/darwin-${{ matrix.arch }}/rapidocr-sidecar/rapidocr-sidecar"
+          APP_BINARY="$APP_RESOURCES/../MacOS/NinTranslate"
+          test -x "$SIDECAR"
+          lipo -archs "$SIDECAR" | grep -qw "${{ matrix.binary_arch }}"
+          lipo -archs "$APP_BINARY" | grep -qw "${{ matrix.binary_arch }}"
 
       - name: Create checksums
         run: |
@@ -168,7 +179,7 @@ jobs:
       - name: Verify packaged core resources
         shell: pwsh
         run: |
-          $models = 'ch_PP-LCNet_x0_25_textline_ori_cls_mobile','ch_PP-OCRv5_det_mobile','ch_PP-OCRv5_rec_mobile','eslav_PP-OCRv5_rec_mobile','korean_PP-OCRv5_rec_mobile','latin_PP-OCRv5_rec_mobile'
+          $models = 'ch_PP-LCNet_x0_25_textline_ori_cls_mobile','ch_PP-OCRv5_det_mobile','ch_PP-OCRv5_rec_mobile','ch_PP-OCRv5_rec_server','eslav_PP-OCRv5_rec_mobile','korean_PP-OCRv5_rec_mobile','latin_PP-OCRv5_rec_mobile','layout_cdla','layout_publaynet'
           foreach ($model in $models) {
             if (-not (Test-Path "release/win-unpacked/resources/rapidocr/models/$model.onnx")) {
               throw "Missing packaged RapidOCR model: $model"
@@ -221,4 +232,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" release/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "NinTranslate ${GITHUB_REF_NAME#v} · RapidOCR 截图翻译" \
-            --notes "本地 OCR 已升级为 RapidOCR 与 PaddleOCR PP-OCRv5 多语言模型；新增跨行语义整理，改善被界面换行截断的整句翻译；修复深色模式下拉框可读性。提供 Windows 安装版/便携版，以及 macOS Apple 芯片 arm64/Intel x64 安装包。macOS 当前仍为未使用 Apple Developer 证书签名的测试版。"
+            --notes "本地 OCR 已升级为 RapidOCR 与 PaddleOCR PP-OCRv5 多语言模型；新增本地版面分段、多栏阅读顺序与原文编辑重译；修复深色模式下拉框和编辑框可读性。提供 Windows 安装版/便携版，以及 macOS Apple 芯片 arm64/Intel x64 安装包。macOS 当前仍为未使用 Apple Developer 证书签名的测试版。"

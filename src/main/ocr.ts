@@ -7,6 +7,9 @@ export interface OcrParagraph {
   text: string;
   confidence: number;
   bounds: { x: number; y: number; width: number; height: number };
+  layoutBlockId?: string;
+  layoutType?: 'text' | 'title' | 'figure' | 'table' | 'caption' | 'equation';
+  hardBreakBefore?: boolean;
 }
 
 export interface OcrResult {
@@ -14,6 +17,9 @@ export interface OcrResult {
   confidence: number;
   paragraphs: OcrParagraph[];
   modelGroup?: 'cjk' | 'korean' | 'latin' | 'cyrillic';
+  layoutApplied: boolean;
+  layoutElapsedMs: number;
+  highAccuracyApplied?: boolean;
 }
 
 interface SidecarResponse {

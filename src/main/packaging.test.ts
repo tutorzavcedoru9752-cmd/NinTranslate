@@ -43,14 +43,36 @@ describe('macOS packaging safeguards', () => {
       'ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx',
       'ch_PP-OCRv5_det_mobile.onnx',
       'ch_PP-OCRv5_rec_mobile.onnx',
+      'ch_PP-OCRv5_rec_server.onnx',
       'eslav_PP-OCRv5_rec_mobile.onnx',
       'korean_PP-OCRv5_rec_mobile.onnx',
-      'latin_PP-OCRv5_rec_mobile.onnx'
+      'latin_PP-OCRv5_rec_mobile.onnx',
+      'layout_cdla.onnx',
+      'layout_publaynet.onnx'
     ];
     const prepareScript = fs.readFileSync(path.join(projectRoot, 'scripts', 'prepare-ocr.mjs'), 'utf8');
     for (const model of models) {
       expect(prepareScript).toContain(`'${model}'`);
     }
     expect(manifest.build?.extraResources).toContainEqual(expect.objectContaining({ to: 'rapidocr' }));
+    const buildScript = fs.readFileSync(path.join(projectRoot, 'scripts', 'build-rapidocr.mjs'), 'utf8');
+    expect(buildScript).toContain("'--collect-data', 'rapid_layout'");
+  });
+
+  it('builds and verifies a native RapidOCR runtime for both Mac architectures', () => {
+    const workflow = fs.readFileSync(
+      path.join(projectRoot, '.github', 'workflows', 'build-macos.yml'),
+      'utf8'
+    );
+    expect(workflow).toContain('runner: macos-15');
+    expect(workflow).toContain('runner: macos-15-intel');
+    expect(workflow).toContain('machine_arch: arm64');
+    expect(workflow).toContain('machine_arch: x86_64');
+    expect(workflow).toContain('python-version: "3.12"');
+    expect(workflow).toContain('npm run build:rapidocr');
+    expect(workflow).toContain('rapidocr/runtime/darwin-${{ matrix.arch }}/rapidocr-sidecar/rapidocr-sidecar');
+    expect(workflow).toContain('test "$(uname -m)" = "${{ matrix.machine_arch }}"');
+    expect(workflow).toContain('lipo -archs "$SIDECAR"');
+    expect(workflow).toContain('lipo -archs "$APP_BINARY"');
   });
 });
