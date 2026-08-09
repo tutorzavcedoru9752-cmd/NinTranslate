@@ -12,13 +12,15 @@ permissions:
 jobs:
   macos:
     name: macOS ${{ matrix.arch }}
-    runs-on: macos-14
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        arch:
-          - arm64
-          - x64
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x64
+            runner: macos-15-intel
 
     steps:
       - name: Check out source
@@ -30,8 +32,18 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Build native RapidOCR runtime
+        run: |
+          python -m pip install -r scripts/rapidocr-requirements.txt
+          npm run build:rapidocr
 
       - name: Run automated tests
         run: npm test -- --run
@@ -49,9 +61,10 @@ jobs:
           test -n "$(find release -path '*/NinTranslate.app/Contents/Resources/brand/nintranslate-app-icon.png' -print -quit)"
           grep -q "settings:test" dist-electron/main/main.js
           APP_RESOURCES="$(find release -path '*/NinTranslate.app/Contents/Resources' -type d -print -quit)"
-          for lang in chi_sim chi_tra eng jpn kor fra deu spa por rus; do
-            test -f "$APP_RESOURCES/ocr/$lang.traineddata.gz"
+          for model in ch_PP-LCNet_x0_25_textline_ori_cls_mobile ch_PP-OCRv5_det_mobile ch_PP-OCRv5_rec_mobile eslav_PP-OCRv5_rec_mobile korean_PP-OCRv5_rec_mobile latin_PP-OCRv5_rec_mobile; do
+            test -f "$APP_RESOURCES/rapidocr/models/$model.onnx"
           done
+          test -x "$APP_RESOURCES/rapidocr/runtime/darwin-${{ matrix.arch }}/rapidocr-sidecar/rapidocr-sidecar"
 
       - name: Create checksums
         run: |
@@ -82,8 +95,19 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Build native RapidOCR runtime
+        shell: pwsh
+        run: |
+          python -m pip install -r scripts/rapidocr-requirements.txt
+          npm run build:rapidocr
 
       - name: Run automated tests
         run: npm test -- --run
@@ -144,11 +168,14 @@ jobs:
       - name: Verify packaged core resources
         shell: pwsh
         run: |
-          $languages = 'chi_sim','chi_tra','eng','jpn','kor','fra','deu','spa','por','rus'
-          foreach ($language in $languages) {
-            if (-not (Test-Path "release/win-unpacked/resources/ocr/$language.traineddata.gz")) {
-              throw "Missing packaged OCR model: $language"
+          $models = 'ch_PP-LCNet_x0_25_textline_ori_cls_mobile','ch_PP-OCRv5_det_mobile','ch_PP-OCRv5_rec_mobile','eslav_PP-OCRv5_rec_mobile','korean_PP-OCRv5_rec_mobile','latin_PP-OCRv5_rec_mobile'
+          foreach ($model in $models) {
+            if (-not (Test-Path "release/win-unpacked/resources/rapidocr/models/$model.onnx")) {
+              throw "Missing packaged RapidOCR model: $model"
             }
+          }
+          if (-not (Test-Path 'release/win-unpacked/resources/rapidocr/runtime/win32-x64/rapidocr-sidecar/rapidocr-sidecar.exe')) {
+            throw 'Missing packaged Windows RapidOCR runtime'
           }
           if (-not (Select-String -Quiet -Path dist-electron/main/main.js -Pattern 'result:set-target')) {
             throw 'Missing result:set-target IPC handler'
@@ -193,5 +220,5 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" release/* \
             --repo "$GITHUB_REPOSITORY" \
-            --title "NinTranslate ${GITHUB_REF_NAME#v} · 十语种截图翻译" \
-            --notes "新增简繁中文、英语、日语、韩语、法语、德语、西班牙语、葡萄牙语和俄语离线 OCR；翻译服务自动检测源语言；设置页与结果页均可选择目标语言。提供 Windows 安装版/便携版，以及 macOS Apple 芯片 arm64/Intel x64 安装包。macOS 当前仍为未使用 Apple Developer 证书签名的测试版。"
+            --title "NinTranslate ${GITHUB_REF_NAME#v} · RapidOCR 截图翻译" \
+            --notes "本地 OCR 已升级为 RapidOCR 与 PaddleOCR PP-OCRv5 多语言模型；新增跨行语义整理，改善被界面换行截断的整句翻译；修复深色模式下拉框可读性。提供 Windows 安装版/便携版，以及 macOS Apple 芯片 arm64/Intel x64 安装包。macOS 当前仍为未使用 Apple Developer 证书签名的测试版。"

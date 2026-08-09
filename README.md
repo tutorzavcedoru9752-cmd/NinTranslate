@@ -52,8 +52,9 @@ NinTranslate 是一款面向 Windows 与 macOS 的截图翻译软件。使用全
 
 ## 多语言识别说明
 
-- 第一次截图时会加载约 18.1 MB 的十语种离线模型，因此会比之后的截图稍慢。
+- 第一次截图时会启动 RapidOCR/ONNX 本地识别引擎并加载约 52 MB 的 PP-OCRv5 模型，因此可能需要数秒；之后会复用已启动的引擎。
 - 一张截图按照一种主要语言识别和翻译；多语言混排内容可能需要人工校对。
+- OCR 保留原文的换行显示；发送翻译前会按标点、行距和语言书写习惯合并被截图换行截断的句子，中文等连续书写语言不插入空格，拉丁字母语言会补空格，并修复行尾连字符。
 - 结果页修改目标语言会直接复用已识别文字，不会重新截图或重新 OCR，也不会修改设置页中的默认语言。
 - 截图始终只在本机内存中处理，翻译服务收到的仍然只有识别后的文字。
 
@@ -63,12 +64,15 @@ NinTranslate 是一款面向 Windows 与 macOS 的截图翻译软件。使用全
 
 - Node.js 18 或更高版本
 - npm
+- Python 3.12（用于构建 RapidOCR 本地运行环境）
 - 构建 macOS 安装包时必须在 macOS 环境运行
 
 安装依赖并启动：
 
 ```powershell
 npm.cmd ci
+python -m pip install -r scripts/rapidocr-requirements.txt
+npm.cmd run build:rapidocr
 npm.cmd run dev
 ```
 
@@ -100,13 +104,15 @@ npm run dist:mac -- --x64
 - Electron
 - TypeScript
 - React
-- Tesseract.js
+- RapidOCR 3.8.1
+- PaddleOCR PP-OCRv5 多语言模型
+- ONNX Runtime
 - Vitest
 - electron-builder
 
 ## 当前版本
 
-`1.5.0`
+`1.6.0`
 
 ## 许可证
 

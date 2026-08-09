@@ -3,8 +3,17 @@ dist/
 dist-electron/
 release/
 .vitest-storage/
+.rapidocr-build/
+.rapidocr-venv/
+.download-cache/
+/build/rapidocr/
+/resources/rapidocr/runtime/
+__pycache__/
+/output/playwright/electron-user-data*/
+/output/
+/outputs/
 
-# Local OCR build copies; packaged models under resources/ocr are tracked.
+# Legacy local OCR build copies; RapidOCR models under resources/rapidocr are tracked.
 /*.traineddata
 
 # Branding source/QA previews not required by the application build.

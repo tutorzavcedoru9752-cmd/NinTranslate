@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({
@@ -29,7 +30,8 @@ describe('ten-language offline OCR', () => {
   for (const [code, expected] of fixtures) {
     it(`recognizes ${code}`, async () => {
       const imagePath = path.resolve(__dirname, '__fixtures__', 'ocr', `${code}.png`);
-      const result = await recognizeImage(imagePath);
+      const imageData = `data:image/png;base64,${fs.readFileSync(imagePath).toString('base64')}`;
+      const result = await recognizeImage(imageData);
       const normalized = result.text.normalize('NFC').replace(/\s+/g, '').trim().toLocaleLowerCase();
       const expectedNormalized = expected.normalize('NFC').replace(/\s+/g, '').toLocaleLowerCase();
       expect(normalized).toContain(expectedNormalized);

@@ -32,6 +32,9 @@ export function Settings(): React.JSX.Element {
   const [working, setWorking] = useState(false);
 
   useEffect(() => {
+    // The preload API is always present in Electron. Keeping the static view
+    // renderable without it lets the design be checked safely in a browser.
+    if (!window.ninTranslate) return undefined;
     const refreshHistory = (): void => { void window.ninTranslate.history.list().then(setHistory); };
     void Promise.all([window.ninTranslate.settings.get(), window.ninTranslate.history.list()]).then(([nextSettings, nextHistory]) => { setSettings(nextSettings); setHistory(nextHistory); });
     const stopHistoryUpdates = window.ninTranslate.history.onChanged(setHistory);

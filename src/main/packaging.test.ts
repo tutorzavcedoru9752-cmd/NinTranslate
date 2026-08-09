@@ -8,7 +8,6 @@ interface BuildResource {
 }
 
 interface PackageManifest {
-  dependencies?: Record<string, string>;
   build?: {
     files?: string[];
     extraResources?: BuildResource[];
@@ -39,13 +38,19 @@ describe('macOS packaging safeguards', () => {
     expect(registerPosition).toBeLessThan(readyPosition);
   });
 
-  it('declares and prepares every bundled OCR language model', () => {
-    const languages = ['chi_sim', 'chi_tra', 'eng', 'jpn', 'kor', 'fra', 'deu', 'spa', 'por', 'rus'];
+  it('verifies and packages every RapidOCR PP-OCRv5 model group', () => {
+    const models = [
+      'ch_PP-LCNet_x0_25_textline_ori_cls_mobile.onnx',
+      'ch_PP-OCRv5_det_mobile.onnx',
+      'ch_PP-OCRv5_rec_mobile.onnx',
+      'eslav_PP-OCRv5_rec_mobile.onnx',
+      'korean_PP-OCRv5_rec_mobile.onnx',
+      'latin_PP-OCRv5_rec_mobile.onnx'
+    ];
     const prepareScript = fs.readFileSync(path.join(projectRoot, 'scripts', 'prepare-ocr.mjs'), 'utf8');
-    for (const language of languages) {
-      expect(manifest.dependencies?.[`@tesseract.js-data/${language}`]).toBeTruthy();
-      expect(prepareScript).toContain(`'${language}'`);
+    for (const model of models) {
+      expect(prepareScript).toContain(`'${model}'`);
     }
-    expect(manifest.build?.files).toContain('!node_modules/@tesseract.js-data/**/*');
+    expect(manifest.build?.extraResources).toContainEqual(expect.objectContaining({ to: 'rapidocr' }));
   });
 });

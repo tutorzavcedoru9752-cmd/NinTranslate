@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import type { CapturePayload, CaptureSelection, HistoryEntry, LanguageCode, ResultState, SettingsUpdate } from '../shared/types';
 import { isLanguageCode } from '../shared/language';
 import { recognizeImage, terminateOcr } from './ocr';
+import { buildTranslationText } from './textFlow';
 import {
   addHistory, clearHistory, deleteHistory, getPublicSettings, getTranslatorCredentials,
   listHistory, saveSettings
@@ -23,6 +24,7 @@ const brandAssetPath = (filename: string): string => app.isPackaged
 const overlayPayloads = new Map<number, CapturePayload>();
 const overlayWindows = new Set<BrowserWindow>();
 const resultStates = new Map<string, ResultState>();
+const resultTranslationTexts = new Map<string, string>();
 const resultWindows = new Map<string, BrowserWindow>();
 const resultRequestVersions = new RequestVersionTracker();
 let settingsWindow: BrowserWindow | null = null;
@@ -146,7 +148,7 @@ async function createResultWindow(selection: CaptureSelection): Promise<{ id: st
   const targetLanguage = getPublicSettings().defaultTargetLanguage;
   const state: ResultState = {
     id, status: 'recognizing', sourceLanguage: 'auto', targetLanguage,
-    sourceText: '', translatedText: '', message: '正在加载多语言识别模型并识别文字…', pinned: false
+    sourceText: '', translatedText: '', message: '正在启动本地 RapidOCR 并识别文字…', pinned: false
   };
   resultStates.set(id, state);
   const win = createWindow({
@@ -155,7 +157,12 @@ async function createResultWindow(selection: CaptureSelection): Promise<{ id: st
     show: false, backgroundColor: '#00000000'
   });
   resultWindows.set(id, win);
-  win.on('closed', () => { resultWindows.delete(id); resultStates.delete(id); resultRequestVersions.delete(id); });
+  win.on('closed', () => {
+    resultWindows.delete(id);
+    resultStates.delete(id);
+    resultTranslationTexts.delete(id);
+    resultRequestVersions.delete(id);
+  });
   await win.loadURL(pageUrl(`result?id=${encodeURIComponent(id)}`));
   win.show();
   return { id, win };
@@ -180,7 +187,8 @@ async function performTranslation(id: string): Promise<void> {
   }
   sendResult({ ...state, status: 'translating', translatedText: '', message: '正在翻译…' });
   try {
-    const result = await translateText(state.sourceText, state.sourceLanguage, state.targetLanguage, credentials);
+    const translationText = resultTranslationTexts.get(id) ?? buildTranslationText([], state.sourceText);
+    const result = await translateText(translationText, state.sourceLanguage, state.targetLanguage, credentials);
     if (!resultRequestVersions.isLatest(id, requestVersion)) return;
     const ready: ResultState = {
       ...state,
@@ -214,6 +222,7 @@ async function processSelection(selection: CaptureSelection): Promise<void> {
       sendResult({ ...resultStates.get(id)!, status: 'empty', confidence: ocr.confidence, message: '没有识别到文字，请重新截图。' });
       return;
     }
+    resultTranslationTexts.set(id, buildTranslationText(ocr.paragraphs, ocr.text));
     sendResult({
       ...resultStates.get(id)!, status: 'translating', sourceLanguage: 'auto',
       sourceText: ocr.text, confidence: ocr.confidence, message: ocr.confidence < 45 ? '识别置信度较低，翻译结果可能需要校对。' : '识别完成，正在自动检测语言并翻译…'
@@ -305,6 +314,7 @@ function registerIpc(): void {
       sourceText: state.translatedText,
       translatedText: state.sourceText
     };
+    resultTranslationTexts.set(id, buildTranslationText([], swapped.sourceText));
     const history = addHistory({
       id,
       createdAt: new Date().toISOString(),

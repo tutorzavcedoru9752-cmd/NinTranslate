@@ -1,6 +1,6 @@
 {
   "name": "nintranslate",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "private": true,
   "description": "Windows and macOS multilingual screenshot OCR and translation tool",
   "main": "dist-electron/main/main.js",
@@ -15,27 +15,17 @@
     "test": "vitest run src --configLoader runner --exclude src/main/ocr.integration.test.ts",
     "test:ocr": "vitest run src/main/ocr.integration.test.ts --configLoader runner",
     "prepare:ocr": "node scripts/prepare-ocr.mjs",
+    "build:rapidocr": "node scripts/build-rapidocr.mjs",
     "clean:electron": "node scripts/clean-electron.mjs",
     "build": "npm run prepare:ocr && npm run typecheck && vite build --configLoader runner && npm run clean:electron && tsc -p tsconfig.electron.json",
     "dist": "npm run dist:win",
-    "dist:win": "npm run build && electron-builder --config.electronDist=node_modules/electron/dist --win nsis portable --x64 --publish never",
-    "dist:mac": "npm run build && electron-builder --mac dmg zip --publish never",
-    "dist:dir": "npm run build && electron-builder --dir --win --x64"
+    "dist:win": "cross-env REQUIRE_RAPIDOCR_RUNTIME=1 npm run build && electron-builder --config.electronDist=node_modules/electron/dist --win nsis portable --x64 --publish never",
+    "dist:mac": "cross-env REQUIRE_RAPIDOCR_RUNTIME=1 npm run build && electron-builder --mac dmg zip --publish never",
+    "dist:dir": "cross-env REQUIRE_RAPIDOCR_RUNTIME=1 npm run build && electron-builder --dir --win --x64"
   },
   "dependencies": {
-    "@tesseract.js-data/chi_sim": "^1.0.0",
-    "@tesseract.js-data/chi_tra": "^1.0.0",
-    "@tesseract.js-data/deu": "^1.0.0",
-    "@tesseract.js-data/eng": "^1.0.0",
-    "@tesseract.js-data/fra": "^1.0.0",
-    "@tesseract.js-data/jpn": "^1.0.0",
-    "@tesseract.js-data/kor": "^1.0.0",
-    "@tesseract.js-data/por": "^1.0.0",
-    "@tesseract.js-data/rus": "^1.0.0",
-    "@tesseract.js-data/spa": "^1.0.0",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "tesseract.js": "^6.0.1"
+    "react-dom": "^19.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.15.30",
@@ -55,23 +45,18 @@
     "appId": "com.nintranslate.app",
     "productName": "NinTranslate",
     "asar": true,
-    "asarUnpack": [
-      "node_modules/tesseract.js/**/*",
-      "node_modules/tesseract.js-core/**/*"
-    ],
     "directories": {
       "output": "release"
     },
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "package.json",
-      "!node_modules/@tesseract.js-data/**/*"
+      "package.json"
     ],
     "extraResources": [
       {
-        "from": "resources/ocr",
-        "to": "ocr"
+        "from": "resources/rapidocr",
+        "to": "rapidocr"
       },
       {
         "from": "resources/brand",

@@ -3,10 +3,15 @@
   color: #20211d;
   background: transparent;
   font-synthesis: none;
+  color-scheme: light;
+  --select-option-bg: #fff;
+  --select-option-text: #30322c;
 }
 * { box-sizing: border-box; }
 html, body, #root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 button, input, select { font: inherit; }
+select { color-scheme: light; }
+select option { background-color: var(--select-option-bg); color: var(--select-option-text); }
 button { cursor: pointer; }
 button:disabled { cursor: default; opacity: .55; }
 .drag-region { -webkit-app-region: drag; }
@@ -96,8 +101,10 @@ button:disabled { cursor: default; opacity: .55; }
 .history-item { min-width: 0; border: 1px solid #e0e1db; border-radius: 13px; background: #fff; overflow: hidden; }.history-meta { height: 38px; padding: 0 12px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #ecece8; }.history-meta span { color: #285bbd; font-size: 9px; font-weight: 750; }.history-meta time { color: #9a9d95; font-size: 9px; }.history-meta button { margin-left: auto; border: 0; background: transparent; color: #969991; font-size: 16px; }.history-columns { min-width: 0; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }.history-columns > div { min-width: 0; position: relative; min-height: 90px; padding: 13px; }.history-columns > div + div { border-left: 1px solid #ecece8; background: #f8faff; }.history-columns small { color: #9a9d95; font-size: 8px; font-weight: 700; }.history-columns p { margin: 6px 30px 0 0; color: #41433d; font-size: 11px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }.history-columns button { position: absolute; right: 10px; top: 11px; border: 0; background: transparent; color: #246bfe; font-size: 9px; }
 
 @media (prefers-color-scheme: dark) {
-  :root { color: #ebece7; }
+  :root { color: #ebece7; color-scheme: dark; --select-option-bg: #242622; --select-option-text: #eef0e9; }
+  select { color-scheme: dark; }
   .settings-shell, .settings-main { background: #20221f; color: #edeec9; }.titlebar, .sticky-save { background: rgba(31,33,30,.96); border-color: #383b36; }.sidebar { background: #252724; border-color: #383b36; }.nav-button { color: #b0b3aa; }.nav-button:hover { background: #30332e; }.nav-button.active, .settings-card, .history-item { background: #2b2e29; color: #f0f1ec; border-color: #3d403a; }.settings-card input, .settings-card select, .history-toolbar input { background: #242622; border-color: #444740; color: #eef0e9; }.preference-row, .history-meta, .history-columns > div + div { border-color: #3b3e38; }.history-columns > div + div { background: #292d32; }.history-columns p { color: #d3d6ce; }
+  .settings-card input:focus, .settings-card select:focus, .history-toolbar input:focus { background: #242622; border-color: #6895f8; color: #eef0e9; }
   .result-shell { background: rgba(34,36,33,.98); color: #eceee7; border-color: #4a4d46; }.result-header, .result-footer { border-color: #42453e; }.text-panel { background: #292b28; border-color: #474a43; }.translation-panel { background: #252c38; border-color: #3d4c64; }.panel-label { border-color: #42453e; }.text-scroll { color: #e1e3dc; }.translation-text { color: #cddcff; }.icon-button:hover, .icon-button.active { background: #3b3e38; color: #fff; }.secondary-button { background: #30332e; color: #e7e9e2; border-color: #484b44; }.danger-button { background: #382d2b; color: #efafa7; border-color: #5b3d39; }.danger-button:disabled { background: #2b2d29; color: #676a63; border-color: #3c3f39; }.size-menu { background: rgba(42,45,40,.99); border-color: #4b4e47; }.size-menu button { color: #eef0e9; }.size-menu button:hover, .size-menu button:focus-visible { background: #333a47; }
-  .target-language select { background: #2d3440; border-color: #4a566a; color: #cddcff; }
+  .target-language select, .target-language select:focus { background: #2d3440; border-color: #4a566a; color: #cddcff; }
 }

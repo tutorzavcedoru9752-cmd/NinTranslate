@@ -6,7 +6,7 @@ describe('supported languages', () => {
     expect(SUPPORTED_LANGUAGES.map(({ code }) => code)).toEqual([
       'zh-Hans', 'zh-Hant', 'en', 'ja', 'ko', 'fr', 'de', 'es', 'pt', 'ru'
     ]);
-    expect(new Set(SUPPORTED_LANGUAGES.map(({ tesseract }) => tesseract)).size).toBe(10);
+    expect(new Set(SUPPORTED_LANGUAGES.map(({ code }) => code)).size).toBe(10);
   });
 
   it('validates persisted language codes', () => {
