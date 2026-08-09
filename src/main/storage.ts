@@ -2,7 +2,8 @@ import { app, safeStorage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isLanguageCode } from '../shared/language';
-import type { HistoryEntry, LanguageCode, PublicSettings, SettingsUpdate, ThemeMode, TranslationProvider } from '../shared/types';
+import { isRecognitionMode } from '../shared/recognition';
+import type { HistoryEntry, LanguageCode, PublicSettings, RecognitionMode, SettingsUpdate, ThemeMode, TranslationProvider } from '../shared/types';
 import type { TranslatorCredentials } from './translator';
 
 interface StoredSettings {
@@ -13,6 +14,7 @@ interface StoredSettings {
   launchAtLogin: boolean;
   theme: ThemeMode;
   defaultTargetLanguage: LanguageCode;
+  recognitionMode: RecognitionMode;
   encryptedApiKey?: string;
   encryptedBaiduAppId?: string;
   encryptedBaiduSecret?: string;
@@ -25,7 +27,8 @@ const defaults: StoredSettings = {
   hotkey: process.platform === 'darwin' ? 'CommandOrControl+Shift+T' : 'Alt+Shift+T',
   launchAtLogin: false,
   theme: 'system',
-  defaultTargetLanguage: 'zh-Hans'
+  defaultTargetLanguage: 'zh-Hans',
+  recognitionMode: 'zh-en-fast'
 };
 
 function dataPath(name: string): string {
@@ -51,7 +54,10 @@ export function getStoredSettings(): StoredSettings {
   const defaultTargetLanguage = isLanguageCode(saved.defaultTargetLanguage)
     ? saved.defaultTargetLanguage
     : defaults.defaultTargetLanguage;
-  return { ...defaults, ...saved, provider, defaultTargetLanguage };
+  const recognitionMode = isRecognitionMode(saved.recognitionMode)
+    ? saved.recognitionMode
+    : defaults.recognitionMode;
+  return { ...defaults, ...saved, provider, defaultTargetLanguage, recognitionMode };
 }
 
 export function getPublicSettings(): PublicSettings {
@@ -66,6 +72,7 @@ export function getPublicSettings(): PublicSettings {
     launchAtLogin: settings.launchAtLogin,
     theme: settings.theme,
     defaultTargetLanguage: settings.defaultTargetLanguage,
+    recognitionMode: settings.recognitionMode,
     hasCredentials: settings.provider === 'baidu' ? hasBaiduCredentials : hasMicrosoftApiKey,
     hasBaiduCredentials,
     hasMicrosoftApiKey
@@ -109,7 +116,10 @@ export function saveSettings(update: SettingsUpdate): PublicSettings {
     theme: update.theme,
     defaultTargetLanguage: isLanguageCode(update.defaultTargetLanguage)
       ? update.defaultTargetLanguage
-      : defaults.defaultTargetLanguage
+      : defaults.defaultTargetLanguage,
+    recognitionMode: isRecognitionMode(update.recognitionMode)
+      ? update.recognitionMode
+      : defaults.recognitionMode
   };
   if (update.apiKey?.trim()) {
     if (!safeStorage.isEncryptionAvailable()) throw new Error('当前系统不支持安全保存 API 密钥。');

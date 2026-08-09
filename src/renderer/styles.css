@@ -64,6 +64,7 @@ button:disabled { cursor: default; opacity: .55; }
 .panel-label button { border: 0; background: transparent; color: #246bfe; font-size: 11px; padding: 4px; }.panel-label button:disabled { color: #a7aaa2; cursor: default; }.panel-actions { display: flex; align-items: center; gap: 5px; }.panel-actions .save-source { padding: 4px 7px; border-radius: 6px; background: #246bfe; color: #fff; }
 .target-language { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .target-language, .flow-mode { display: inline-flex; align-items: center; gap: 3px; min-width: 0; }
+.detected-language { color: #246bfe; font-weight: 750; }
 .target-language select, .flow-mode select { max-width: 116px; height: 24px; padding: 0 20px 0 5px; border: 1px solid #d8deeb; border-radius: 6px; outline: none; background: #fff; color: #285bbd; font-size: 10px; font-weight: 700; }
 .flow-mode select { max-width: 104px; color: #5d6259; }
 .target-language select:focus, .flow-mode select:focus { border-color: #6895f8; box-shadow: 0 0 0 2px rgba(36,107,254,.1); }
@@ -115,6 +116,7 @@ button:disabled { cursor: default; opacity: .55; }
   .settings-card input:focus, .settings-card select:focus, .history-toolbar input:focus { background: #242622; border-color: #6895f8; color: #eef0e9; }
   .result-shell { background: rgba(34,36,33,.98); color: #eceee7; border-color: #4a4d46; }.result-header, .result-footer { border-color: #42453e; }.text-panel { background: #292b28; border-color: #474a43; }.translation-panel { background: #252c38; border-color: #3d4c64; }.panel-label { border-color: #42453e; }.text-scroll { color: #e1e3dc; }.translation-text { color: #cddcff; }.icon-button:hover, .icon-button.active { background: #3b3e38; color: #fff; }.secondary-button { background: #30332e; color: #e7e9e2; border-color: #484b44; }.danger-button { background: #382d2b; color: #efafa7; border-color: #5b3d39; }.danger-button:disabled { background: #2b2d29; color: #676a63; border-color: #3c3f39; }.size-menu { background: rgba(42,45,40,.99); border-color: #4b4e47; }.size-menu button { color: #eef0e9; }.size-menu button:hover, .size-menu button:focus-visible { background: #333a47; }
   .target-language select, .target-language select:focus { background: #2d3440; border-color: #4a566a; color: #cddcff; }
+  .detected-language { color: #9bb8ff; }
   .flow-mode select, .flow-mode select:focus { background: #30332e; border-color: #4a4e46; color: #e1e3dc; }
   .panel-actions .save-source { background: #3979ff; color: #fff; }.panel-label button:disabled { color: #676a63; }
 }

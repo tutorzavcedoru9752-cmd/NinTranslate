@@ -447,15 +447,30 @@ def annotate_layout(
         return False, round((time.perf_counter() - started) * 1000, 2)
 
 
-def recognize(pool: EnginePool, image_data: str) -> dict[str, Any]:
+def recognize(
+    pool: EnginePool,
+    image_data: str,
+    recognition_mode: str = "multilingual",
+) -> dict[str, Any]:
     image, offset_x, offset_y = trim_uniform_margin(decode_image(image_data))
     ocr_image = prepare_ocr_pixels(image)
-    candidates = [
-        run_candidate(pool, group, ocr_image, offset_x, offset_y)
-        for group in MODEL_GROUPS
-    ]
+    if recognition_mode == "zh-en-fast":
+        # The Chinese PP-OCRv5 mobile recognizer includes Latin characters, so
+        # one pass covers common Simplified Chinese and English screenshots.
+        # Do not silently escalate to the large Server recognizer: fast mode
+        # must remain predictable for users who explicitly selected speed.
+        candidates = [run_candidate(pool, "cjk", ocr_image, offset_x, offset_y)]
+    elif recognition_mode == "multilingual":
+        candidates = [
+            run_candidate(pool, group, ocr_image, offset_x, offset_y)
+            for group in MODEL_GROUPS
+        ]
+    else:
+        raise ValueError("不支持的文字识别模式。")
     best = select_candidate(candidates)
-    high_accuracy_applied = should_try_high_accuracy(best)
+    high_accuracy_applied = (
+        recognition_mode == "multilingual" and should_try_high_accuracy(best)
+    )
     if high_accuracy_applied:
         candidates.append(run_candidate(
             pool,
@@ -478,6 +493,7 @@ def recognize(pool: EnginePool, image_data: str) -> dict[str, Any]:
         "layoutApplied": layout_applied,
         "layoutElapsedMs": layout_elapsed_ms,
         "highAccuracyApplied": high_accuracy_applied,
+        "recognitionMode": recognition_mode,
     }
 
 
@@ -498,7 +514,10 @@ def main() -> None:
             request_id = request.get("id")
             if request.get("action") != "recognize":
                 raise ValueError("不支持的 OCR 请求。")
-            respond({"id": request_id, "ok": True, "result": recognize(pool, request["imageData"])})
+            recognition_mode = request.get("recognitionMode", "multilingual")
+            respond({"id": request_id, "ok": True, "result": recognize(
+                pool, request["imageData"], recognition_mode
+            )})
         except Exception as error:  # keep the long-lived process available for retry
             traceback.print_exc(file=sys.stderr)
             respond({"id": request_id, "ok": False, "error": str(error)})

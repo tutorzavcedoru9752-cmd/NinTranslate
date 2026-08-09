@@ -30,6 +30,7 @@ try {
     $relative = $_.FullName.Substring($projectRoot.Length + 1)
     $topLevel = $relative.Split([IO.Path]::DirectorySeparatorChar, 2)[0]
     if ($excludedTopLevel -contains $topLevel) { return $false }
+    if ($topLevel -eq 'docs' -and [IO.Path]::GetFileName($relative) -like 'Mac*.txt') { return $false }
     if ($relative.StartsWith("resources$([IO.Path]::DirectorySeparatorChar)rapidocr$([IO.Path]::DirectorySeparatorChar)runtime$([IO.Path]::DirectorySeparatorChar)")) { return $false }
     return $true
   }

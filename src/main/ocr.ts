@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import path from 'node:path';
 import { app } from 'electron';
 import { randomUUID } from 'node:crypto';
+import type { RecognitionMode } from '../shared/types';
 
 export interface OcrParagraph {
   text: string;
@@ -20,6 +21,7 @@ export interface OcrResult {
   layoutApplied: boolean;
   layoutElapsedMs: number;
   highAccuracyApplied?: boolean;
+  recognitionMode: RecognitionMode;
 }
 
 interface SidecarResponse {
@@ -142,7 +144,10 @@ function startSidecar(): Promise<void> {
   return readyPromise;
 }
 
-export async function recognizeImage(imageDataUrl: string): Promise<OcrResult> {
+export async function recognizeImage(
+  imageDataUrl: string,
+  recognitionMode: RecognitionMode = 'multilingual'
+): Promise<OcrResult> {
   await startSidecar();
   const processHandle = sidecar;
   if (!processHandle || processHandle.killed) throw new Error('RapidOCR 本地引擎不可用。');
@@ -153,7 +158,7 @@ export async function recognizeImage(imageDataUrl: string): Promise<OcrResult> {
       reject(new Error('本地文字识别超时，请缩小截图范围后重试。'));
     }, 120_000);
     pending.set(id, { resolve, reject, timeout });
-    processHandle.stdin.write(`${JSON.stringify({ id, action: 'recognize', imageData: imageDataUrl })}\n`, (error) => {
+    processHandle.stdin.write(`${JSON.stringify({ id, action: 'recognize', imageData: imageDataUrl, recognitionMode })}\n`, (error) => {
       if (!error) return;
       const request = pending.get(id);
       if (!request) return;

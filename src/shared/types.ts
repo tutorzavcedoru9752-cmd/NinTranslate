@@ -3,6 +3,7 @@ export type SourceLanguageCode = LanguageCode | 'auto';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type TranslationProvider = 'baidu' | 'microsoft';
 export type TextFlowMode = 'smart' | 'preserve' | 'merge';
+export type RecognitionMode = 'zh-en-fast' | 'multilingual';
 
 export interface PublicSettings {
   provider: TranslationProvider;
@@ -12,6 +13,7 @@ export interface PublicSettings {
   launchAtLogin: boolean;
   theme: ThemeMode;
   defaultTargetLanguage: LanguageCode;
+  recognitionMode: RecognitionMode;
   hasCredentials: boolean;
   hasBaiduCredentials: boolean;
   hasMicrosoftApiKey: boolean;
@@ -25,6 +27,7 @@ export interface SettingsUpdate {
   launchAtLogin: boolean;
   theme: ThemeMode;
   defaultTargetLanguage: LanguageCode;
+  recognitionMode: RecognitionMode;
   baiduAppId?: string;
   baiduSecret?: string;
   apiKey?: string;
@@ -53,6 +56,7 @@ export interface ResultState {
   pinned: boolean;
   sourceEdited: boolean;
   flowMode: TextFlowMode;
+  recognitionMode: RecognitionMode;
 }
 
 export interface CapturePayload {

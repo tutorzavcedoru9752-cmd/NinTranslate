@@ -146,11 +146,11 @@ function broadcastHistory(history: HistoryEntry[] = listHistory()): void {
 async function createResultWindow(selection: CaptureSelection): Promise<{ id: string; win: BrowserWindow }> {
   const id = randomUUID();
   const position = resultPosition(selection.screenBounds);
-  const targetLanguage = getPublicSettings().defaultTargetLanguage;
+  const settings = getPublicSettings();
   const state: ResultState = {
-    id, status: 'recognizing', sourceLanguage: 'auto', targetLanguage,
+    id, status: 'recognizing', sourceLanguage: 'auto', targetLanguage: settings.defaultTargetLanguage,
     sourceText: '', translatedText: '', message: '正在启动本地 OCR 并分析文字版面…', pinned: false,
-    sourceEdited: false, flowMode: 'smart'
+    sourceEdited: false, flowMode: 'smart', recognitionMode: settings.recognitionMode
   };
   resultStates.set(id, state);
   const win = createWindow({
@@ -218,7 +218,8 @@ async function processSelection(selection: CaptureSelection): Promise<void> {
   closeOverlays();
   const { id } = await createResultWindow(selection);
   try {
-    const ocr = await recognizeImage(selection.imageDataUrl);
+    const initialState = resultStates.get(id)!;
+    const ocr = await recognizeImage(selection.imageDataUrl, initialState.recognitionMode);
     if (!ocr.text) {
       sendResult({ ...resultStates.get(id)!, status: 'empty', confidence: ocr.confidence, message: '没有识别到文字，请重新截图。' });
       return;

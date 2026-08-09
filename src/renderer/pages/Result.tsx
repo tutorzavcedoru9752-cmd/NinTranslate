@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { languageLabel, SUPPORTED_LANGUAGES } from '../../shared/language';
+import { recognitionModeLabel } from '../../shared/recognition';
 import type { LanguageCode, ResultState, TextFlowMode } from '../../shared/types';
 import logoUrl from '../../../resources/brand/nintranslate-window.png';
 
@@ -86,7 +87,7 @@ export function Result(): React.JSX.Element {
         {busy && !state.sourceText && <div className="center-state"><span className="spinner dark" /><strong>{state.message}</strong><span>截图只在本机内存中处理</span></div>}
         {state.sourceText && <>
           <div className="text-panel source-panel">
-            <div className="panel-label"><label className="flow-mode"><span>原文 ·</span><select aria-label="原文分段方式" value={state.flowMode} disabled={busy || editing || state.sourceEdited} onChange={(event) => changeFlowMode(event.target.value as TextFlowMode)}><option value="smart">智能分段</option><option value="preserve">保留视觉行</option><option value="merge">合并为一段</option></select></label><div className="panel-actions">{editing ? <><button onClick={cancelEdit}>取消</button><button className="save-source" onClick={() => void saveEdit()}>保存并重译</button></> : <><button disabled={busy} onClick={beginEdit}>编辑原文</button><button onClick={() => copy(state.sourceText, 'source')}>{copied === 'source' ? '已复制' : '复制'}</button></>}</div></div>
+            <div className="panel-label"><label className="flow-mode"><span>原文 · <strong className="detected-language">{state.sourceLanguage === 'auto' ? (busy ? '识别中' : '自动识别') : languageLabel(state.sourceLanguage)}</strong></span><select aria-label="原文分段方式" value={state.flowMode} disabled={busy || editing || state.sourceEdited} onChange={(event) => changeFlowMode(event.target.value as TextFlowMode)}><option value="smart">智能分段</option><option value="preserve">保留视觉行</option><option value="merge">合并为一段</option></select></label><div className="panel-actions">{editing ? <><button onClick={cancelEdit}>取消</button><button className="save-source" onClick={() => void saveEdit()}>保存并重译</button></> : <><button disabled={busy} onClick={beginEdit}>编辑原文</button><button onClick={() => copy(state.sourceText, 'source')}>{copied === 'source' ? '已复制' : '复制'}</button></>}</div></div>
             {editing ? <div className="source-editor-wrap"><textarea className="source-editor" aria-label="编辑识别原文" autoFocus value={draftSource} onChange={(event) => { setDraftSource(event.target.value); setEditError(''); }} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); cancelEdit(); } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void saveEdit(); } }} />{editError && <span className="source-edit-error" role="alert">{editError}</span>}</div> : <div className="text-scroll">{state.sourceText}</div>}
           </div>
           <button className="swap-button" title="交换原文和译文" onClick={() => void window.ninTranslate.result.swap(id)} disabled={busy || editing || state.sourceLanguage === 'auto' || !state.translatedText}>⇅</button>
@@ -98,7 +99,7 @@ export function Result(): React.JSX.Element {
         {!busy && state.message && <div className={`status-banner ${state.status}`}><span>{state.status === 'empty' ? '未找到文字' : state.status === 'needs-config' ? '需要配置' : '提示'}</span><p>{state.message}</p></div>}
       </section>
       <footer className="result-footer">
-        <span>{state.sourceEdited ? '原文已人工编辑' : state.confidence !== undefined ? `OCR 置信度 ${Math.round(state.confidence)}%` : '本地 OCR · 图片不上传'}<small>{editing ? 'Enter 换段 · Ctrl/Command + Enter 保存' : '使用顶部尺寸按钮调整窗口大小'}</small></span>
+        <span>{state.sourceEdited ? '原文已人工编辑' : state.confidence !== undefined ? `${recognitionModeLabel(state.recognitionMode)} · OCR 置信度 ${Math.round(state.confidence)}%` : `${recognitionModeLabel(state.recognitionMode)} · 图片不上传`}<small>{editing ? 'Enter 换段 · Ctrl/Command + Enter 保存' : '使用顶部尺寸按钮调整窗口大小'}</small></span>
         <div>
           {state.status === 'needs-config' && <button className="secondary-button" onClick={() => void window.ninTranslate.app.openSettings()}>打开设置</button>}
           {(state.status === 'error' || state.status === 'needs-config') && state.sourceText && <button className="primary-button small" onClick={() => void window.ninTranslate.result.retry(id)}>重试翻译</button>}

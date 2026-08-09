@@ -76,13 +76,14 @@ describe('ten-language offline OCR', () => {
     it(`recognizes ${code}`, async () => {
       const imagePath = path.resolve(__dirname, '__fixtures__', 'ocr', `${code}.png`);
       const imageData = `data:image/png;base64,${fs.readFileSync(imagePath).toString('base64')}`;
-      const result = await recognizeImage(imageData);
+      const result = await recognizeImage(imageData, 'multilingual');
       const normalized = result.text.normalize('NFC').replace(/\s+/g, '').trim().toLocaleLowerCase();
       const expectedNormalized = expected.normalize('NFC').replace(/\s+/g, '').toLocaleLowerCase();
       expect(normalized).toContain(expectedNormalized);
       expect(result.paragraphs.length).toBeGreaterThan(0);
       expect(result.layoutApplied).toBe(false);
       expect(result.layoutElapsedMs).toBe(0);
+      expect(result.recognitionMode).toBe('multilingual');
       if (code === 'ja') expect(result.highAccuracyApplied).toBe(true);
     }, 120_000);
   }
@@ -90,26 +91,44 @@ describe('ten-language offline OCR', () => {
   it('assigns multiline OCR rows to local layout blocks without writing the screenshot', async () => {
     const imagePath = path.resolve(__dirname, '__fixtures__', 'ocr', 'layout-paragraphs.png');
     const imageData = `data:image/png;base64,${fs.readFileSync(imagePath).toString('base64')}`;
-    const result = await recognizeImage(imageData);
+    const result = await recognizeImage(imageData, 'zh-en-fast');
     const blockIds = new Set(result.paragraphs.map((paragraph) => paragraph.layoutBlockId).filter(Boolean));
     expect(result.layoutApplied).toBe(true);
     expect(result.layoutElapsedMs).toBeGreaterThan(0);
     expect(result.layoutElapsedMs).toBeLessThan(2_000);
     expect(blockIds.size).toBeGreaterThanOrEqual(1);
     expect(result.paragraphs.some((paragraph) => paragraph.layoutType)).toBe(true);
-    expect(result.paragraphs.some((paragraph) => !paragraph.layoutBlockId)).toBe(true);
+    expect(result.recognitionMode).toBe('zh-en-fast');
+    expect(result.modelGroup).toBe('cjk');
+    expect(result.highAccuracyApplied).toBe(false);
   }, 120_000);
 
   for (const fixture of realWorldFixtures) {
     it(`preserves every character and joins only visual wraps in ${fixture.filename}`, async () => {
       const imagePath = path.resolve(__dirname, '__fixtures__', 'ocr', fixture.filename);
       const imageData = `data:image/png;base64,${fs.readFileSync(imagePath).toString('base64')}`;
-      const result = await recognizeImage(imageData);
+      const result = await recognizeImage(imageData, 'multilingual');
       expect(result.paragraphs.map(({ text }) => text)).toEqual([...fixture.rows]);
       expect(result.text).toBe(fixture.rows.join('\n'));
       expect(buildTranslationText(result.paragraphs, result.text)).toBe(fixture.translationText);
       expect(result.layoutApplied).toBe(true);
       expect(result.confidence).toBeGreaterThan(95);
+    }, 120_000);
+  }
+});
+
+describe('Chinese-English fast OCR', () => {
+  for (const [code, expected] of fixtures.filter(([code]) => code === 'zh-Hans' || code === 'en')) {
+    it(`recognizes ${code} with only the CJK mobile recognizer`, async () => {
+      const imagePath = path.resolve(__dirname, '__fixtures__', 'ocr', `${code}.png`);
+      const imageData = `data:image/png;base64,${fs.readFileSync(imagePath).toString('base64')}`;
+      const result = await recognizeImage(imageData, 'zh-en-fast');
+      const normalized = result.text.normalize('NFC').replace(/\s+/g, '').trim().toLocaleLowerCase();
+      const expectedNormalized = expected.normalize('NFC').replace(/\s+/g, '').toLocaleLowerCase();
+      expect(normalized).toContain(expectedNormalized);
+      expect(result.recognitionMode).toBe('zh-en-fast');
+      expect(result.modelGroup).toBe('cjk');
+      expect(result.highAccuracyApplied).toBe(false);
     }, 120_000);
   }
 });

@@ -34,6 +34,7 @@ describe('settings migration', () => {
   it('defaults old settings files to Simplified Chinese', () => {
     fs.writeFileSync(settingsPath, JSON.stringify({ provider: 'baidu' }), 'utf8');
     expect(getPublicSettings().defaultTargetLanguage).toBe('zh-Hans');
+    expect(getPublicSettings().recognitionMode).toBe('zh-en-fast');
   });
 
   it('keeps a valid saved target language and rejects unknown values', () => {
@@ -41,6 +42,13 @@ describe('settings migration', () => {
     expect(getPublicSettings().defaultTargetLanguage).toBe('ja');
     fs.writeFileSync(settingsPath, JSON.stringify({ defaultTargetLanguage: 'xx' }), 'utf8');
     expect(getPublicSettings().defaultTargetLanguage).toBe('zh-Hans');
+  });
+
+  it('keeps a valid recognition mode and falls back to Chinese-English fast mode', () => {
+    fs.writeFileSync(settingsPath, JSON.stringify({ recognitionMode: 'multilingual' }), 'utf8');
+    expect(getPublicSettings().recognitionMode).toBe('multilingual');
+    fs.writeFileSync(settingsPath, JSON.stringify({ recognitionMode: 'unknown' }), 'utf8');
+    expect(getPublicSettings().recognitionMode).toBe('zh-en-fast');
   });
 });
 
