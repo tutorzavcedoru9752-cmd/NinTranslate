@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { CapturePayload } from '../../shared/types';
 
 interface Point { x: number; y: number }
@@ -10,6 +11,7 @@ function normalizedRect(start: Point, end: Point): Rect {
 
 async function cropAndEnhance(payload: CapturePayload, rect: Rect): Promise<string> {
   const image = new Image();
+  image.crossOrigin = 'anonymous';
   await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('截图加载失败')); image.src = payload.imageDataUrl; });
   const scaleX = image.naturalWidth / window.innerWidth;
   const scaleY = image.naturalHeight / window.innerHeight;
@@ -39,35 +41,60 @@ export function Overlay(): React.JSX.Element {
   const [start, setStart] = useState<Point | null>(null);
   const [current, setCurrent] = useState<Point | null>(null);
   const [processing, setProcessing] = useState(false);
+  const revision = useRef(0);
   const rect = start && current ? normalizedRect(start, current) : null;
 
   useEffect(() => {
-    void window.ninTranslate.capture.getPayload().then(setPayload);
+    let disposed = false;
+    const prepare = (next: CapturePayload | null) => {
+      if (!next) return;
+      if (disposed) return;
+      ++revision.current;
+      // Use the displayed <img>'s load event, not an off-screen preloader: the
+      // latter causes a second fetch with no-store and can reveal a blank frame.
+      flushSync(() => { setStart(null); setCurrent(null); setProcessing(false); setPayload(next); });
+    };
+    const stopPrepare = window.ninTranslate.capture.onPrepare(next => { void prepare(next); });
+    const stopReset = window.ninTranslate.capture.onReset(() => {
+      ++revision.current; setPayload(null); setStart(null); setCurrent(null); setProcessing(false);
+    });
+    void window.ninTranslate.capture.getPayload().then(prepare);
+    void window.ninTranslate.capture.ready(null);
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') void window.ninTranslate.capture.cancel(); };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => { disposed = true; ++revision.current; stopPrepare(); stopReset(); window.removeEventListener('keydown', onKey); };
   }, []);
 
-  async function finishSelection(): Promise<void> {
-    if (!payload || !rect || rect.width < 8 || rect.height < 8) { setStart(null); setCurrent(null); return; }
+  async function finishSelection(end: Point): Promise<void> {
+    const selectionRect = start ? normalizedRect(start, end) : null;
+    if (processing) return;
+    if (!payload || !selectionRect || selectionRect.width < 8 || selectionRect.height < 8) { setStart(null); setCurrent(null); return; }
+    const version = revision.current;
     setProcessing(true);
     try {
-      const imageDataUrl = await cropAndEnhance(payload, rect);
+      const imageDataUrl = await cropAndEnhance(payload, selectionRect);
+      if (version !== revision.current) return;
       await window.ninTranslate.capture.complete({
+        sessionId: payload.sessionId,
         imageDataUrl,
-        screenBounds: { x: payload.bounds.x + rect.x, y: payload.bounds.y + rect.y, width: rect.width, height: rect.height }
+        screenBounds: { x: payload.bounds.x + selectionRect.x, y: payload.bounds.y + selectionRect.y, width: selectionRect.width, height: selectionRect.height }
       });
-    } catch { setProcessing(false); }
+    } catch { if (version === revision.current) setProcessing(false); }
   }
 
   return (
     <div
       className="capture-root"
-      style={payload ? { backgroundImage: `url(${payload.imageDataUrl})` } : undefined}
-      onPointerDown={(event) => { if (!processing) { event.currentTarget.setPointerCapture(event.pointerId); setStart({ x: event.clientX, y: event.clientY }); setCurrent({ x: event.clientX, y: event.clientY }); } }}
+      role="region"
+      aria-label="截图选区，拖动框选文字，按 Escape 取消"
+      onContextMenu={(event) => { event.preventDefault(); void window.ninTranslate.capture.cancel(); }}
+      onPointerDown={(event) => { if (payload && !processing && event.button === 0) { event.currentTarget.setPointerCapture(event.pointerId); setStart({ x: event.clientX, y: event.clientY }); setCurrent({ x: event.clientX, y: event.clientY }); } }}
       onPointerMove={(event) => { if (start && !processing) setCurrent({ x: event.clientX, y: event.clientY }); }}
-      onPointerUp={() => void finishSelection()}
+      onPointerUp={(event) => { if (event.button === 0) void finishSelection({ x: event.clientX, y: event.clientY }); }}
     >
+      {payload && <img key={payload.sessionId} className="capture-screen" src={payload.imageDataUrl} alt="" draggable={false}
+        onLoad={() => { void window.ninTranslate.capture.ready(payload.sessionId); }}
+        onError={() => { void window.ninTranslate.capture.cancel(); }} />}
       {!rect && <div className="capture-help"><strong>拖动框选要翻译的文字</strong><span>按 Esc 取消</span></div>}
       {rect && <div className="capture-selection" style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}><span>{Math.round(rect.width)} × {Math.round(rect.height)}</span></div>}
       {processing && <div className="capture-processing"><span className="spinner" />正在准备识别…</div>}

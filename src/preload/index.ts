@@ -3,7 +3,18 @@ import type { CapturePayload, CaptureSelection, HistoryEntry, LanguageCode, Publ
 
 const api = {
   capture: {
-    getPayload: (): Promise<CapturePayload> => ipcRenderer.invoke('capture:get-payload'),
+    getPayload: (): Promise<CapturePayload | null> => ipcRenderer.invoke('capture:get-payload'),
+    ready: (sessionId: string | null): Promise<void> => ipcRenderer.invoke('capture:ready', sessionId),
+    onPrepare: (callback: (payload: CapturePayload) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: CapturePayload) => callback(payload);
+      ipcRenderer.on('capture:prepare', listener);
+      return () => { ipcRenderer.removeListener('capture:prepare', listener); };
+    },
+    onReset: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on('capture:reset', listener);
+      return () => { ipcRenderer.removeListener('capture:reset', listener); };
+    },
     complete: (selection: CaptureSelection): Promise<void> => ipcRenderer.invoke('capture:complete', selection),
     cancel: (): Promise<void> => ipcRenderer.invoke('capture:cancel')
   },

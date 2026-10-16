@@ -1,6 +1,6 @@
 {
   "name": "nintranslate",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "private": true,
   "description": "Windows and macOS multilingual screenshot OCR and translation tool",
   "main": "dist-electron/main/main.js",
@@ -15,10 +15,16 @@
     "test": "vitest run src --configLoader runner --exclude src/main/ocr.integration.test.ts",
     "test:ocr": "vitest run src/main/ocr.integration.test.ts --configLoader runner",
     "test:ocr:browser": "npm run build && node scripts/ocr-browser-random.cjs",
+    "test:ui": "npm run build && node scripts/verify-ui.cjs",
     "prepare:ocr": "node scripts/prepare-ocr.mjs",
     "build:rapidocr": "node scripts/build-rapidocr.mjs",
+    "build:capture": "node scripts/build-capture.mjs",
+    "test:capture": "npm run build && node scripts/benchmark-capture.cjs optimized",
+    "test:capture:ui": "npm run build && node scripts/verify-capture.cjs",
+    "test:capture:native": "npm run build && node scripts/verify-native-overlay.cjs",
+    "test:capture:idle": "npm run build && node scripts/benchmark-native-overlay.cjs current",
     "clean:electron": "node scripts/clean-electron.mjs",
-    "build": "npm run prepare:ocr && npm run typecheck && vite build --configLoader runner && npm run clean:electron && tsc -p tsconfig.electron.json",
+    "build": "npm run prepare:ocr && npm run build:capture && npm run typecheck && vite build --configLoader runner && npm run clean:electron && tsc -p tsconfig.electron.json",
     "dist": "npm run dist:win",
     "dist:win": "cross-env REQUIRE_RAPIDOCR_RUNTIME=1 npm run build && electron-builder --config.electronDist=node_modules/electron/dist --win nsis portable --x64 --publish never",
     "dist:mac": "cross-env REQUIRE_RAPIDOCR_RUNTIME=1 npm run build && electron-builder --mac dmg zip --publish never",
@@ -55,6 +61,10 @@
       "package.json"
     ],
     "extraResources": [
+      {
+        "from": "resources/capture",
+        "to": "capture"
+      },
       {
         "from": "resources/rapidocr",
         "to": "rapidocr"

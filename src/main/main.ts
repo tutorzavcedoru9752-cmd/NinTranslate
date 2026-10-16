@@ -1,10 +1,10 @@
 import {
-  app, BrowserWindow, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage,
+  app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage,
   nativeTheme, screen, shell, systemPreferences, Tray
 } from 'electron';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { CapturePayload, CaptureSelection, HistoryEntry, LanguageCode, ResultState, SettingsUpdate, TextFlowMode } from '../shared/types';
+import type { CaptureSelection, HistoryEntry, LanguageCode, ResultState, SettingsUpdate, TextFlowMode } from '../shared/types';
 import { isLanguageCode } from '../shared/language';
 import { recognizeImage, terminateOcr, type OcrParagraph } from './ocr';
 import { buildTranslationText } from './textFlow';
@@ -17,13 +17,18 @@ import { clampResultWindowSize } from './windowSize';
 import { testTranslatorConnection } from './connectionTest';
 import { RequestVersionTracker } from './requestVersion';
 import { prepareEditedResult } from './sourceEdit';
+import { CaptureController, registerCaptureScheme } from './capture';
+import { NativeCaptureController } from './nativeCapture';
+import { recordCaptureMetric } from './captureDiagnostics';
+
+registerCaptureScheme();
 
 const preloadPath = path.join(__dirname, '..', 'preload', 'index.js');
 const brandAssetPath = (filename: string): string => app.isPackaged
   ? path.join(process.resourcesPath, 'brand', filename)
   : path.join(app.getAppPath(), 'resources', 'brand', filename);
-const overlayPayloads = new Map<number, CapturePayload>();
-const overlayWindows = new Set<BrowserWindow>();
+let capture: CaptureController;
+let nativeCapture: NativeCaptureController | undefined;
 const resultStates = new Map<string, ResultState>();
 const resultOcrParagraphs = new Map<string, OcrParagraph[]>();
 const resultWindows = new Map<string, BrowserWindow>();
@@ -54,9 +59,8 @@ function createWindow(options: Electron.BrowserWindowConstructorOptions): Browse
 }
 
 function closeOverlays(): void {
-  for (const win of overlayWindows) if (!win.isDestroyed()) win.destroy();
-  overlayWindows.clear();
-  overlayPayloads.clear();
+  nativeCapture?.cancel();
+  capture?.cancel();
 }
 
 async function ensureScreenCapturePermission(): Promise<boolean> {
@@ -80,50 +84,32 @@ async function ensureScreenCapturePermission(): Promise<boolean> {
 
 async function startCapture(): Promise<void> {
   if (!await ensureScreenCapturePermission()) return;
-  closeOverlays();
-  const displays = screen.getAllDisplays();
-  const maxWidth = Math.max(...displays.map((d) => Math.ceil(d.size.width * d.scaleFactor)));
-  const maxHeight = Math.max(...displays.map((d) => Math.ceil(d.size.height * d.scaleFactor)));
-  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: maxWidth, height: maxHeight } });
-  if (!sources.length) {
+  if (capture?.isActive || nativeCapture?.isActive) return;
+  try {
+    if (nativeCapture) {
+      try { await nativeCapture.start(); return; }
+      catch { recordCaptureMetric({ backend: 'native-overlay', event: 'failure' }); }
+    }
+    await capture.start();
+  }
+  catch (error) {
     await dialog.showMessageBox({
       type: 'warning',
       title: '无法读取屏幕',
-      message: '没有取得可用的屏幕画面。',
+      message: error instanceof Error ? error.message : '没有取得可用的屏幕画面。',
       detail: process.platform === 'darwin'
         ? '请确认已在“系统设置 → 隐私与安全性”中授予屏幕录制权限，然后重新启动 NinTranslate。'
         : '请重试；如果问题持续存在，请重新启动 NinTranslate。',
       buttons: ['知道了']
     });
-    return;
-  }
-
-  for (const display of displays) {
-    const source = sources.find((item) => item.display_id === String(display.id)) ?? sources[displays.indexOf(display)];
-    if (!source) continue;
-    const win = createWindow({
-      x: display.bounds.x, y: display.bounds.y, width: display.bounds.width, height: display.bounds.height,
-      frame: false, transparent: false, resizable: false, movable: false, skipTaskbar: true,
-      alwaysOnTop: true, fullscreenable: false, show: false
-    });
-    overlayWindows.add(win);
-    const webContentsId = win.webContents.id;
-    overlayPayloads.set(webContentsId, {
-      displayId: String(display.id), imageDataUrl: source.thumbnail.toDataURL(), bounds: display.bounds, scaleFactor: display.scaleFactor
-    });
-    win.on('closed', () => { overlayWindows.delete(win); overlayPayloads.delete(webContentsId); });
-    await win.loadURL(pageUrl('overlay'));
-    if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    win.setAlwaysOnTop(true, 'screen-saver');
-    win.show();
   }
 }
 
 function resultPosition(bounds: CaptureSelection['screenBounds']): { x: number; y: number } {
   const display = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y });
   const area = display.workArea;
-  const width = 440;
-  const height = 430;
+  const width = 520;
+  const height = 580;
   let x = bounds.x + bounds.width + 12;
   if (x + width > area.x + area.width) x = Math.max(area.x, bounds.x - width - 12);
   let y = bounds.y;
@@ -154,7 +140,7 @@ async function createResultWindow(selection: CaptureSelection): Promise<{ id: st
   };
   resultStates.set(id, state);
   const win = createWindow({
-    ...position, width: 440, height: 430, minWidth: 360, minHeight: 320,
+    ...position, width: 520, height: 580, minWidth: 360, minHeight: 320,
     frame: false, transparent: true, resizable: true, alwaysOnTop: true, skipTaskbar: false,
     show: false, backgroundColor: '#00000000'
   });
@@ -244,7 +230,7 @@ function openSettings(): void {
     broadcastHistory();
     return;
   }
-  settingsWindow = createWindow({ width: 820, height: 680, minWidth: 700, minHeight: 560, frame: false, show: false, backgroundColor: '#f5f5f2' });
+  settingsWindow = createWindow({ width: 960, height: 760, minWidth: 700, minHeight: 560, frame: false, show: false, backgroundColor: nativeTheme.shouldUseDarkColors ? '#171c24' : '#f5f7fa' });
   settingsWindow.on('close', (event) => {
     if (!quitting) { event.preventDefault(); settingsWindow?.hide(); }
   });
@@ -296,9 +282,14 @@ function configureMacDockIcon(): void {
 }
 
 function registerIpc(): void {
-  ipcMain.handle('capture:get-payload', (event) => overlayPayloads.get(event.sender.id));
-  ipcMain.handle('capture:complete', (_event, selection: CaptureSelection) => processSelection(selection));
-  ipcMain.handle('capture:cancel', () => closeOverlays());
+  ipcMain.handle('capture:get-payload', (event) => capture?.getPayload(event.sender.id) ?? null);
+  ipcMain.handle('capture:ready', (event, sessionId: unknown) => capture?.rendererReady(event.sender.id, sessionId));
+  ipcMain.handle('capture:complete', (event, selection: CaptureSelection) => {
+    if (!selection || !capture?.accepts(event.sender.id, selection.sessionId)) return;
+    if (typeof selection.imageDataUrl !== 'string' || !selection.imageDataUrl.startsWith('data:image/png;base64,')) throw new Error('截图数据无效。');
+    return processSelection(selection);
+  });
+  ipcMain.handle('capture:cancel', (event) => { if (capture?.getPayload(event.sender.id)) closeOverlays(); });
   ipcMain.handle('result:get', (_event, id: string) => resultStates.get(id) ?? null);
   ipcMain.handle('result:retry', (_event, id: string) => performTranslation(id));
   ipcMain.handle('result:set-target', async (_event, id: string, targetLanguage: LanguageCode) => {
@@ -409,6 +400,16 @@ else {
   registerIpc();
   app.on('second-instance', (_event, argv) => { if (argv.includes('--capture')) void startCapture(); else openSettings(); });
   app.whenReady().then(() => {
+    capture = new CaptureController({ createWindow, pageUrl, onTiming: recordCaptureMetric });
+    if (process.platform === 'win32') {
+      nativeCapture = new NativeCaptureController({ onSelection: processSelection, onTiming: recordCaptureMetric,
+        onFailure: () => recordCaptureMetric({ backend: 'native-overlay', event: 'failure' }) });
+      void nativeCapture.prewarm().catch(() => capture.prewarm().catch(() => {}));
+    } else void capture.prewarm().catch(error => console.warn('Unable to prewarm screenshot windows.', error));
+    const displayChanged = () => { capture.displayChanged(!nativeCapture); nativeCapture?.displayChanged(); };
+    screen.on('display-added', displayChanged);
+    screen.on('display-removed', displayChanged);
+    screen.on('display-metrics-changed', displayChanged);
     try { configureMacDockIcon(); } catch (error) { console.error('Unable to configure the macOS Dock icon.', error); }
     try { createTray(); } catch (error) { console.error('Unable to create the tray or menu-bar icon.', error); }
     const settings = getPublicSettings(); nativeTheme.themeSource = settings.theme;
@@ -418,5 +419,5 @@ else {
   });
   app.on('activate', openSettings);
   app.on('window-all-closed', () => { /* Keep tray process alive. */ });
-  app.on('before-quit', () => { quitting = true; globalShortcut.unregisterAll(); void terminateOcr(); });
+  app.on('before-quit', () => { quitting = true; globalShortcut.unregisterAll(); nativeCapture?.dispose(); capture?.dispose(); void terminateOcr(); });
 }
