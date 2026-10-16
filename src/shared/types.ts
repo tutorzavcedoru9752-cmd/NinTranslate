@@ -60,6 +60,7 @@ export interface ResultState {
 }
 
 export interface CapturePayload {
+  sessionId: string;
   displayId: string;
   imageDataUrl: string;
   bounds: { x: number; y: number; width: number; height: number };
@@ -67,6 +68,7 @@ export interface CapturePayload {
 }
 
 export interface CaptureSelection {
+  sessionId: string;
   imageDataUrl: string;
   screenBounds: { x: number; y: number; width: number; height: number };
 }

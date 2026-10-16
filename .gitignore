@@ -8,6 +8,7 @@ release/
 .download-cache/
 /build/rapidocr/
 /resources/rapidocr/runtime/
+/resources/capture/win32-x64/
 __pycache__/
 /output/playwright/electron-user-data*/
 /output/

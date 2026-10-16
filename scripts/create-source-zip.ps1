@@ -18,6 +18,7 @@ $excludedTopLevel = @(
 )
 
 New-Item -ItemType Directory -Force -Path $outputsRoot | Out-Null
+[IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destinationPath)) | Out-Null
 if (Test-Path -LiteralPath $destinationPath) {
   Remove-Item -LiteralPath $destinationPath
 }
@@ -32,6 +33,9 @@ try {
     if ($excludedTopLevel -contains $topLevel) { return $false }
     if ($topLevel -eq 'docs' -and [IO.Path]::GetFileName($relative) -like 'Mac*.txt') { return $false }
     if ($relative.StartsWith("resources$([IO.Path]::DirectorySeparatorChar)rapidocr$([IO.Path]::DirectorySeparatorChar)runtime$([IO.Path]::DirectorySeparatorChar)")) { return $false }
+    if ($relative.StartsWith("resources$([IO.Path]::DirectorySeparatorChar)capture$([IO.Path]::DirectorySeparatorChar)win32-x64$([IO.Path]::DirectorySeparatorChar)")) { return $false }
+    if ($relative.Split([IO.Path]::DirectorySeparatorChar) -contains '__pycache__') { return $false }
+    if ($_.Name -like '.env*' -or $_.Name -in 'settings.json','history.json','credentials.json' -or $_.Extension -in '.log','.pyc') { return $false }
     return $true
   }
   foreach ($file in $files) {

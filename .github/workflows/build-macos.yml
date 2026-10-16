@@ -188,6 +188,12 @@ jobs:
           if (-not (Test-Path 'release/win-unpacked/resources/rapidocr/runtime/win32-x64/rapidocr-sidecar/rapidocr-sidecar.exe')) {
             throw 'Missing packaged Windows RapidOCR runtime'
           }
+          if (-not (Test-Path 'release/win-unpacked/resources/capture/win32-x64/screen-capture.exe')) {
+            throw 'Missing packaged Windows native capture helper'
+          }
+          if (-not (Test-Path 'release/win-unpacked/resources/capture/win32-x64/screen-overlay.exe')) {
+            throw 'Missing packaged Windows native selection UI'
+          }
           if (-not (Select-String -Quiet -Path dist-electron/main/main.js -Pattern 'result:set-target')) {
             throw 'Missing result:set-target IPC handler'
           }
